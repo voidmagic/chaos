@@ -31,7 +31,7 @@ class BilingualDatasetFromMonolingual(FairseqMonolingualDataset):
             if source_idx not in tokens and target_idx not in tokens:
                 # other language pair in dataset
                 self.sizes[index] = 99999
-            elif torch.nonzero(torch.tensor(tokens == source_idx)) > torch.nonzero(torch.tensor(tokens == target_idx)):
+            elif torch.nonzero(tokens.eq(source_idx)) > torch.nonzero(tokens.eq(target_idx)):
                 # target to source
                 self.sizes[index] = 99999
 

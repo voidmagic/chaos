@@ -92,12 +92,16 @@ class GPTForMtTask(LanguageModelingTask):
     def filter_indices_by_size(self, indices, dataset, max_positions=None, ignore_invalid_inputs=False):
         return super(GPTForMtTask, self).filter_indices_by_size(indices, dataset, max_positions=max_positions, ignore_invalid_inputs=True)
 
+    def build_generator(self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None):
+        args.max_len_a = 1  # 结果必须比前缀长  max_len_a * src_len + max_len_b
+        return super(GPTForMtTask, self).build_generator(models, args, seq_gen_cls, extra_gen_cls_kwargs)
+
     def inference_step(self, generator, models, sample, prefix_tokens=None, constraints=None):
         results = super(GPTForMtTask, self).inference_step(generator, models, sample, prefix_tokens, constraints)
-        target_idx = self.dictionary.index('<{}>'.format(self.args.target_language))
+        target_idx = self.dictionary.index('<<{}>>'.format(self.args.target_language))
 
         for result in results:
             for beam in result:
-                idx = torch.nonzero(beam['tokens'] == target_idx, as_tuple=False) + 1
+                idx = torch.nonzero(beam['tokens'].eq(target_idx), as_tuple=False) + 1
                 beam['tokens'] = beam['tokens'][idx[-1]:]
         return results
