@@ -10,7 +10,7 @@ def get_language_token_indexes(vocab, tokens):
     for i, symbol in enumerate(symbols):
         if symbol.startswith('<<'):  # language tokens
             if i in tokens:
-                lang_indexes.append(torch.nonzero(torch.tensor(tokens == i)))
+                lang_indexes.append(torch.nonzero(tokens == i))
         elif symbol.startswith('<'):  # fairseq special tokens
             pass
         else:

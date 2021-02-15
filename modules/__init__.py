@@ -11,7 +11,7 @@ from . import translation
 
 # add preset arguments
 import sys
-if 'fairseq-train' in sys.argv:
+if 'fairseq-train' in sys.argv[0]:
     # --optimizer adam
     if '--optimizer' not in sys.argv:
         sys.argv += ['--optimizer', 'adam']

@@ -5,6 +5,8 @@
       <w>fairseq</w>
       <w>iwslt</w>
       <w>pretrain</w>
+      <w>probs</w>
+      <w>scriptable</w>
       <w>warmup</w>
     </words>
   </dictionary>

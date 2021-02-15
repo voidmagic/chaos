@@ -8,7 +8,12 @@ from fairseq.data import (
 )
 from fairseq.data.shorten_dataset import maybe_shorten_dataset
 from fairseq.tasks import register_task
-from fairseq.tasks.language_modeling import LanguageModelingTask, LanguageModelingConfig, dataclass, field, SAMPLE_BREAK_MODE_CHOICES
+from fairseq.tasks.language_modeling import (
+    LanguageModelingTask,
+    LanguageModelingConfig,
+    dataclass,
+    field,
+    SAMPLE_BREAK_MODE_CHOICES)
 
 from .utils.dataset import BilingualDatasetFromMonolingual, MonolingualSrcMaskDataset, MonolingualDataset
 
