@@ -95,7 +95,8 @@ class GPTForMtTask(LanguageModelingTask):
             return MonolingualDataset(**kwargs)
 
     def filter_indices_by_size(self, indices, dataset, max_positions=None, ignore_invalid_inputs=False):
-        return super(GPTForMtTask, self).filter_indices_by_size(indices, dataset, max_positions=max_positions, ignore_invalid_inputs=True)
+        return super(GPTForMtTask, self).filter_indices_by_size(
+            indices, dataset, max_positions=max_positions, ignore_invalid_inputs=True)
 
     def build_generator(self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None):
         args.max_len_a = 1  # 结果必须比前缀长  max_len_a * src_len + max_len_b

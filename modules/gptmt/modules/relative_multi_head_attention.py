@@ -80,21 +80,31 @@ class RelativeMultiHeadAttention(MultiheadAttention):
             .transpose(0, 1)
         )
 
+        ######################################################################################################
         # 两个sequence_length的维度可以互换，区别是位置i(q)和位置j(kv)的相对位置是i-j还是j-i，这里使用j-i，和RelativePE文中一致
-        relative_position_embedding_k = (
-            relative_position_embedding_k   # [batch_size x sequence_length x sequence_length x hidden_dim]
-            .transpose(0, 1).contiguous()   # [sequence_length x batch_size x sequence_length x hidden_dim]
-            .transpose(1, 2).contiguous()   # [sequence_length x sequence_length x batch_size x hidden_dim]
-            .view(tgt_len, tgt_len, bsz * self.num_heads, self.head_dim)
-            .transpose(1, 2).contiguous()   # [sequence_length x batch_size x sequence_length x hidden_dim]
-        )
-        relative_position_embedding_v = (
-            relative_position_embedding_v  # [batch_size x sequence_length x sequence_length x hidden_dim]
-            .transpose(0, 1).contiguous()  # [sequence_length x batch_size x sequence_length x hidden_dim]
-            .transpose(1, 2).contiguous()  # [sequence_length x sequence_length x batch_size x hidden_dim]
-            .view(tgt_len, tgt_len, bsz * self.num_heads, self.head_dim)
-            .transpose(1, 2).contiguous()  # [sequence_length x batch_size x sequence_length x hidden_dim]
-        )
+        batch_size, sequence_length_q, sequence_length_kv, hidden_dim = relative_position_embedding_k.size()
+        if hidden_dim == self.head_dim:
+            # 所有的attention head共享位置编码
+            relative_position_embedding_k = torch.cat([relative_position_embedding_k] * self.num_heads, dim=0)
+            relative_position_embedding_v = torch.cat([relative_position_embedding_v] * self.num_heads, dim=0)
+        else:
+            relative_position_embedding_k = (
+                relative_position_embedding_k   # [batch_size x sequence_length x sequence_length x hidden_dim]
+                .transpose(0, 1).contiguous()   # [sequence_length x batch_size x sequence_length x hidden_dim]
+                .transpose(1, 2).contiguous()   # [sequence_length x sequence_length x batch_size x hidden_dim]
+                .view(sequence_length_q, sequence_length_kv, batch_size * self.num_heads, self.head_dim)
+                .transpose(1, 2).contiguous()   # [sequence_length x batch_size x sequence_length x hidden_dim]
+                .transpose(0, 1).contiguous()   # [batch_size x sequence_length x sequence_length x hidden_dim]
+            )
+            relative_position_embedding_v = (
+                relative_position_embedding_v  # [batch_size x sequence_length x sequence_length x hidden_dim]
+                .transpose(0, 1).contiguous()  # [sequence_length x batch_size x sequence_length x hidden_dim]
+                .transpose(1, 2).contiguous()  # [sequence_length x sequence_length x batch_size x hidden_dim]
+                .view(sequence_length_q, sequence_length_kv, batch_size * self.num_heads, self.head_dim)
+                .transpose(1, 2).contiguous()  # [sequence_length x batch_size x sequence_length x hidden_dim]
+                .transpose(0, 1).contiguous()  # [batch_size x sequence_length x sequence_length x hidden_dim]
+            )
+        ######################################################################################################
 
         if saved_state is not None:
             # saved states are stored with shape (bsz, num_heads, seq_len, head_dim)
@@ -165,19 +175,18 @@ class RelativeMultiHeadAttention(MultiheadAttention):
                     ],
                     dim=1,
                 )
-
-        # relative_position_embedding: [sequence_length x batch_size x sequence_length x hidden_dim]
+        ######################################################################################################
+        batch_size, _, _, hidden_dim = relative_position_embedding_k.size()
+        # relative_position_embedding: [batch_size x sequence_length x sequence_length x hidden_dim]
         # q: [batch_size x sequence_length x hidden_dim]
         # k: [batch_size x sequence_length x hidden_dim]
-        attn_weights_all = []
-        for i in range(q.size(1)):
-            q_i = q[:, i:i+1]                                    # [batch_size x 1 x hidden_dim]
-            k_respect_to_i = k + relative_position_embedding_k[i]  # [batch_size x sequence_length x hidden_dim]
-            attn_weights = torch.bmm(q_i, k_respect_to_i.transpose(1, 2))  # [batch_size x 1 x sequence_length]
-            attn_weights_all.append(attn_weights)
-
-        attn_weights = torch.cat(attn_weights_all, dim=1)    # [batch_size*num_heads x sequence_length x sequence_length]
-        # attn_weights = torch.bmm(q, k.transpose(1, 2))   # original attn_weights
+        q_relative = q.contiguous().view(batch_size*sequence_length_q, 1, hidden_dim)
+        relative_position_embedding_k = relative_position_embedding_k.view(
+            batch_size*sequence_length_q, sequence_length_kv, hidden_dim)
+        attn_weights = torch.bmm(q_relative, relative_position_embedding_k.transpose(1, 2))
+        attn_weights = attn_weights.view(batch_size, sequence_length_q, sequence_length_kv)
+        attn_weights = attn_weights + torch.bmm(q, k.transpose(1, 2))     # original attn_weights
+        ######################################################################################################
 
         attn_weights = self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
 
@@ -213,16 +222,17 @@ class RelativeMultiHeadAttention(MultiheadAttention):
         attn_probs = self.dropout_module(attn_weights)
 
         assert v is not None
+        ######################################################################################################
         # attn_probs: [batch_size x sequence_length x sequence_length]
         # v:          [batch_size x sequence_length x hidden_dim]
-        attn_all = []
-        for i in range(attn_probs.size(1)):
-            prob_i = attn_probs[:, i:i+1]                        # [batch_size x 1 x sequence_length]
-            v_respect_to_i = v + relative_position_embedding_v[i]  # [batch_size x sequence_length x hidden_dim]
-            attn = torch.bmm(prob_i, v_respect_to_i)             # [batch_size x 1 x hidden_dim]
-            attn_all.append(attn)
-        attn = torch.cat(attn_all, dim=1)
-        # attn = torch.bmm(attn_probs, v)  # origin
+        batch_size, _, _, hidden_dim = relative_position_embedding_v.size()
+        attn_probs_relative = attn_probs.contiguous().view(batch_size*sequence_length_q, 1, sequence_length_kv)
+        relative_position_embedding_v = relative_position_embedding_v.view(
+            batch_size*sequence_length_q, sequence_length_kv, hidden_dim)
+        attn = torch.bmm(attn_probs_relative, relative_position_embedding_v)
+        attn = attn.view(batch_size, sequence_length_q, hidden_dim)
+        attn = attn + torch.bmm(attn_probs, v)  # origin
+        ######################################################################################################
 
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
         if self.onnx_trace and attn.size(1) == 1:

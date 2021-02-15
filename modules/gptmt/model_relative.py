@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 
 import torch
@@ -9,22 +9,22 @@ from fairseq.modules import TransformerDecoderLayer
 from torch import Tensor
 
 from .modules import RelativePositionalEmbedding, RelativeMultiHeadAttention
-from .modules.positional_embedding import get_absolute_position
 
 DEFAULT_MAX_TARGET_POSITIONS = 1024
 
 
 @dataclass
 class LanguageModelRelativeConfig(TransformerLanguageModelConfig):
-    pass
+    share_rpe_across_heads: bool = field(default=False, metadata={"help": "share relative position across all heads"})
 
 
 @register_model("lm_relative", dataclass=LanguageModelRelativeConfig)
 class LanguageModelRelative(TransformerLanguageModel):
     @classmethod
     def build_model(cls, args, task):
-        args.no_token_positional_embeddings = True
+        args.share_rpe_across_heads = getattr(args, 'share_rpe_across_heads', False)
         base_lm_architecture(args)
+        args.no_token_positional_embeddings = True
         if getattr(args, "max_target_positions", None) is None:
             args.max_target_positions = getattr(args, "tokens_per_sample", DEFAULT_MAX_TARGET_POSITIONS)
         embed_tokens = cls.build_embedding(args, task.source_dictionary, args.decoder_input_dim)
@@ -35,10 +35,14 @@ class LanguageModelRelative(TransformerLanguageModel):
 class RelativeDecoder(TransformerDecoder):
     def __init__(self, args, dictionary, embed_tokens, no_encoder_attn=False):
         super(RelativeDecoder, self).__init__(args, dictionary, embed_tokens, no_encoder_attn)
+        if args.share_rpe_across_heads:
+            self.positional_embedding_dim = self.embed_dim // self.args.decoder_attention_heads
+        else:
+            self.positional_embedding_dim = self.embed_dim
         self.layer_wise_position_embedding_k = RelativePositionalEmbedding(
-            self.max_target_positions, self.embed_dim, self.padding_idx, vocab=self.dictionary)
+            self.max_target_positions, self.positional_embedding_dim, self.padding_idx, vocab=self.dictionary)
         self.layer_wise_position_embedding_v = RelativePositionalEmbedding(
-            self.max_target_positions, self.embed_dim, self.padding_idx, vocab=self.dictionary)
+            self.max_target_positions, self.positional_embedding_dim, self.padding_idx, vocab=self.dictionary)
 
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
@@ -62,6 +66,8 @@ class RelativeDecoder(TransformerDecoder):
 
         if incremental_state is not None:
             prev_output_tokens = prev_output_tokens[:, -1:]
+            relative_position_embedding_k = relative_position_embedding_k[:, -1:]
+            relative_position_embedding_v = relative_position_embedding_v[:, -1:]
 
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(prev_output_tokens)

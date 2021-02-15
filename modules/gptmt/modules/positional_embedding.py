@@ -17,8 +17,11 @@ def get_absolute_position(tensor, position_offset, vocab):
     for m in range(tensor.size(0)):
         # 对第一个句子，找出两个语言标签的位置
         src_lang_index, tgt_lang_index = get_language_token_indexes(vocab, tensor[m])
-        positions[m, :tgt_lang_index] = torch.arange(1, int(tgt_lang_index) + 1) + position_offset
-        positions[m, tgt_lang_index:] = torch.arange(1, tensor.size(1) - int(tgt_lang_index) + 1)
+        if src_lang_index is not None and tgt_lang_index is not None:
+            positions[m, :tgt_lang_index] = torch.arange(1, int(tgt_lang_index) + 1) + position_offset
+            positions[m, tgt_lang_index:] = torch.arange(1, tensor.size(1) - int(tgt_lang_index) + 1)
+        else:
+            positions[m] = torch.arange(1, positions.size(1) + 1) + position_offset
     return positions
 
 

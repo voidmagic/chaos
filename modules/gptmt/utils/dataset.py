@@ -10,11 +10,15 @@ def get_language_token_indexes(vocab, tokens):
     for i, symbol in enumerate(symbols):
         if symbol.startswith('<<'):  # language tokens
             if i in tokens:
-                lang_indexes.append(torch.nonzero(tokens == i))
+                lang_indexes.append(min(torch.nonzero(tokens == i)))  # min: 避免生成过程出现语言标签（极小概率）
         elif symbol.startswith('<'):  # fairseq special tokens
             pass
         else:
             break
+    if len(lang_indexes) == 0:
+        return None, None
+    if len(lang_indexes) == 1:
+        return lang_indexes[0], None
     return min(lang_indexes), max(lang_indexes)
 
 
@@ -39,7 +43,7 @@ class BilingualDatasetFromMonolingual(FairseqMonolingualDataset):
         # 只在测试的时候使用，source作为前缀，包含target是目标端句子
         source, _, _ = self.dataset[index]
         lang_index_src, lang_index_tgt = get_language_token_indexes(self.vocab, source)
-        source, target = source[:lang_index_tgt+1], source[lang_index_tgt+1:]
+        source, target = source[:lang_index_tgt + 1], source[lang_index_tgt + 1:]
         return {'id': index, 'source': source, 'target': target}
 
 
@@ -56,11 +60,7 @@ class MonolingualSrcMaskDataset(FairseqMonolingualDataset):
 
 class MonolingualDataset(FairseqMonolingualDataset):
     def __getitem__(self, index):
-        # 把target的语言标签设置为pad，不计算语言标签的loss
         source, future_target, past_target = self.dataset[index]
         source, target = self._make_source_target(source, future_target, past_target)
         source, target = self._maybe_add_bos(source, target)
-        lang_index_src, lang_index_tgt = get_language_token_indexes(self.vocab, target)
-        target[lang_index_src] = self.vocab.pad()
-        target[lang_index_tgt] = self.vocab.pad()
         return {"id": index, "source": source, "target": target}
