@@ -20,7 +20,8 @@ class ShallowDecoderModel(TransformerModel):
 
 
 class Encoder(TransformerEncoder):
-    def forward(self, src_tokens, src_lengths, return_all_hiddens: bool = False):
+    def forward(self, src_tokens, src_lengths, return_all_hiddens: bool = False,
+                token_embeddings: Optional[torch.Tensor] = None,):
         return super(Encoder, self).forward(src_tokens, src_lengths, return_all_hiddens=True)
 
 
