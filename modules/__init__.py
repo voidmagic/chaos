@@ -8,6 +8,7 @@ from . import mtpt
 from . import translation
 from . import positional_embedding
 from . import sync_mnmt
+from . import gptmt2
 
 
 # add preset arguments
@@ -58,7 +59,7 @@ if 'fairseq-train' in sys.argv[0]:
         sys.argv += ['--criterion', 'label_smoothed_cross_entropy']
 
     # --label-smoothing 0.1
-    if '--criterion' not in sys.argv:
+    if '--label-smoothing' not in sys.argv:
         sys.argv += ['--label-smoothing', '0.1']
 
     # --no-progress-bar
@@ -73,17 +74,10 @@ if 'fairseq-train' in sys.argv[0]:
     if '--save-dir' not in sys.argv:
         sys.argv += ['--save-dir', 'data/ckpts']
 
-    # resize batch size
-    import torch
-    device_count = max(1, torch.cuda.device_count())
-    if '--max-tokens' in sys.argv:
-        max_tokens = int(sys.argv[sys.argv.index('--max-tokens') + 1])
-        max_tokens = int(max_tokens / device_count)
-        sys.argv[sys.argv.index('--max-tokens') + 1] = str(max_tokens)
-    elif '--batch-size' in sys.argv:
-        batch_size = int(sys.argv[sys.argv.index('--batch-size') + 1])
-        batch_size = int(batch_size / device_count)
-        sys.argv[sys.argv.index('--batch-size') + 1] = str(batch_size)
-    else:
-        # for debug
+    # no left pad source
+    if '--left-pad-source' not in sys.argv:
+        sys.argv += ['--left-pad-source', 'False']
+
+    # for debug
+    if '--max-tokens' not in sys.argv and '--batch-size' not in sys.argv:
         sys.argv += ['--batch-size', '2']

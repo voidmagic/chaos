@@ -22,3 +22,27 @@ def transformer_lm_iwslt_eq(args):
     args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 1536)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 4)
     base_lm_architecture(args)
+
+
+@register_model_architecture("transformer_lm", "lm_base")
+def transformer_lm_base(args):
+    args.decoder_layers = getattr(args, "decoder_layers", 6)
+    args.decoder_input_dim = getattr(args, "decoder_input_dim", 512)
+    args.decoder_output_dim = getattr(args, "decoder_output_dim", 512)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 512)
+    args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 2048)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
+    base_lm_architecture(args)
+
+
+@register_model_architecture("transformer_lm", "lm_base_eqe")
+def transformer_lm_base_eq(args):
+    args.decoder_layers = getattr(args, "decoder_layers", 6)
+    args.decoder_input_dim = getattr(args, "decoder_input_dim", 768)
+    args.decoder_output_dim = getattr(args, "decoder_output_dim", 768)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", 768)
+    args.decoder_ffn_embed_dim = getattr(args, "decoder_ffn_embed_dim", 3072)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
+    base_lm_architecture(args)
+
+

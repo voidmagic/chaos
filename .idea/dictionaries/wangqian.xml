@@ -4,11 +4,13 @@
       <w>ckpts</w>
       <w>fairseq</w>
       <w>gmnmt</w>
+      <w>hiddens</w>
       <w>iwslt</w>
       <w>langs</w>
       <w>mnmt</w>
       <w>pretrain</w>
       <w>probs</w>
+      <w>proj</w>
       <w>scriptable</w>
       <w>warmup</w>
     </words>
