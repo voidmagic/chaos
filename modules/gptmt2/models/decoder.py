@@ -1,10 +1,10 @@
 from typing import Optional, Dict, List
 
 import torch
+from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.transformer import TransformerDecoder
 
 from .decoder_layer import DecoderLayer
-from .encoder import EncoderOut
 
 
 class Decoder(TransformerDecoder):
