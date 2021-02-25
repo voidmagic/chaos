@@ -5,9 +5,7 @@ from fairseq.modules import TransformerDecoderLayer, MultiheadAttention
 
 
 class DecoderLayer(TransformerDecoderLayer):
-    def build_self_attention(
-        self, embed_dim, args, add_bias_kv=False, add_zero_attn=False
-    ):
+    def build_self_attention(self, embed_dim, args, add_bias_kv=False, add_zero_attn=False):
         return MultiheadAttention(
             embed_dim,
             args.decoder_attention_heads,
@@ -31,6 +29,8 @@ class DecoderLayer(TransformerDecoderLayer):
         self_attn_padding_mask: Optional[torch.Tensor] = None,
         need_attn: bool = False,
         need_head_weights: bool = False,
+        language_embedding=None,
+        layer_wise_attention=False
     ):
         """
         Args:
@@ -48,6 +48,8 @@ class DecoderLayer(TransformerDecoderLayer):
         residual = x
         if self.normalize_before:
             x = self.self_attn_layer_norm(x)
+            if layer_wise_attention:
+                encoder_out = self.self_attn_layer_norm(encoder_out)
         if prev_self_attn_state is not None:
             prev_key, prev_value = prev_self_attn_state[:2]
             saved_state: Dict[str, Optional[torch.Tensor]] = {
@@ -75,7 +77,10 @@ class DecoderLayer(TransformerDecoderLayer):
                     (encoder_padding_mask, self_attn_padding_mask), dim=1
                 )
             assert encoder_out is not None
-            y = torch.cat((encoder_out, x), dim=0)
+            if language_embedding is None:
+                y = torch.cat((encoder_out, x), dim=0)
+            else:
+                y = torch.cat((encoder_out + language_embedding[0], x + language_embedding[1]), dim=0)
         else:
             y = x
 

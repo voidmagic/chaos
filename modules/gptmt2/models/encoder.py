@@ -15,7 +15,8 @@ class Encoder(TransformerEncoder):
         self._future_mask = torch.empty(0)
         self.uni_dir = getattr(args, 'uni_dir_encoder', False)
         if getattr(args, 'language_embedding', False):
-            self.language_embedding = nn.Parameter(torch.Tensor(embed_tokens.embedding_dim))
+            self.language_embedding = nn.Parameter(torch.Tensor(2, embed_tokens.embedding_dim))
+            nn.init.normal_(self.language_embedding, mean=0, std=embed_tokens.embedding_dim ** -0.5)
         else:
             self.language_embedding = None
         self.layer_residual = getattr(args, 'layer_residual', False)
@@ -57,9 +58,6 @@ class Encoder(TransformerEncoder):
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
-        # 在变换维度之后加上
-        if self.language_embedding is not None:
-            x = x + self.language_embedding
 
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
@@ -68,7 +66,7 @@ class Encoder(TransformerEncoder):
         # encoder layers
         for layer in self.layers:
             y = x
-            x = layer(x, encoder_padding_mask, self_attn_mask)
+            x = layer(x, encoder_padding_mask, self_attn_mask, language_embedding=self.language_embedding)
             if self.layer_residual:
                 x = x + y
             encoder_states.append(x)   # 把embedding的保存下来，最后一层不要了

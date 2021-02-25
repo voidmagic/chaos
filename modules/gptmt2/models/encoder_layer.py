@@ -5,7 +5,7 @@ from fairseq.modules import TransformerEncoderLayer
 
 
 class EncoderLayer(TransformerEncoderLayer):
-    def forward(self, x, encoder_padding_mask, attn_mask: Optional[torch.Tensor] = None):
+    def forward(self, x, encoder_padding_mask, attn_mask: Optional[torch.Tensor] = None, language_embedding=None):
         """
         Args:
             x (Tensor): input to the layer of shape `(seq_len, batch, embed_dim)`
@@ -24,10 +24,13 @@ class EncoderLayer(TransformerEncoderLayer):
         residual = x
         if self.normalize_before:
             x = self.self_attn_layer_norm(x)
+
+        query = x
+        key_value = x if language_embedding is None else language_embedding[0] + x
         x, _ = self.self_attn(
-            query=x,
-            key=x,
-            value=x,
+            query=query,
+            key=key_value,
+            value=key_value,
             key_padding_mask=encoder_padding_mask,
             attn_mask=attn_mask,
         )

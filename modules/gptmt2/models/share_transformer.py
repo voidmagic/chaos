@@ -28,6 +28,8 @@ class ShareEncoderDecoderTransformerModel(TransformerModel):
 
     def __init__(self, args, encoder, decoder):
         super().__init__(args, encoder, decoder)
+        if hasattr(self.encoder, 'language_embedding') and hasattr(self.decoder, 'language_embedding'):
+            self.decoder.language_embedding = self.encoder.language_embedding
         if getattr(args, 'share_parameters', False):
             self.make_share_parameters()
 
@@ -46,7 +48,9 @@ class ShareEncoderDecoderTransformerModel(TransformerModel):
 
     @classmethod
     def build_encoder(cls, args, src_dict, embed_tokens):
-        if getattr(args, 'uni_dir_encoder', False) or getattr(args, 'layer_wise_attention', False):
+        if (getattr(args, 'uni_dir_encoder', False)
+                or getattr(args, 'layer_wise_attention', False)
+                or getattr(args, 'language_embedding', False)):
             return Encoder(args, src_dict, embed_tokens)
         else:
             return TransformerModel.build_encoder(args, src_dict, embed_tokens)
