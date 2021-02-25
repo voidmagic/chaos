@@ -17,12 +17,14 @@ class ShareEncoderDecoderTransformerModel(TransformerModel):
         # --share-parameters：共享除了cross attention之外的所有参数，可单独
         # --uni-dir-encoder：编码器使用单向，可单独
         # --layer-wise-attention：使用逐层注意力，可单独
-        parser.add_argument('--share-parameters', default=False, action='store_true',
-                            help='do not perform cross-attention')
-        parser.add_argument('--uni-dir-encoder', default=False, action='store_true',
-                            help='do not perform cross-attention')
-        parser.add_argument('--layer-wise-attention', default=False, action='store_true',
-                            help='do not perform cross-attention')
+        parser.add_argument('--share-parameters', default=False, action='store_true')
+        parser.add_argument('--uni-dir-encoder', default=False, action='store_true')
+        parser.add_argument('--layer-wise-attention', default=False, action='store_true')
+
+        # --language-embedding：语言编码
+        # --layer-residual：跨层残差
+        parser.add_argument('--language-embedding', default=False, action='store_true')
+        parser.add_argument('--layer-residual', default=False, action='store_true')
 
     def __init__(self, args, encoder, decoder):
         super().__init__(args, encoder, decoder)
@@ -30,6 +32,7 @@ class ShareEncoderDecoderTransformerModel(TransformerModel):
             self.make_share_parameters()
 
     def make_share_parameters(self):
+        # 共享除了language embedding以外的参数
         self.decoder.embed_positions = self.encoder.embed_positions
         for enc_layer, dec_layer in zip(self.encoder.layers, self.decoder.layers):
             dec_layer.self_attn.k_proj = enc_layer.self_attn.k_proj

@@ -1,6 +1,7 @@
-from typing import Optional, NamedTuple, List
+from typing import Optional
 
 import torch
+import torch.nn as nn
 from fairseq import utils
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.transformer import TransformerEncoder
@@ -12,7 +13,12 @@ class Encoder(TransformerEncoder):
     def __init__(self, args, src_dict, embed_tokens):
         super(Encoder, self).__init__(args, src_dict, embed_tokens)
         self._future_mask = torch.empty(0)
-        self.uni_dir = args.uni_dir_encoder
+        self.uni_dir = getattr(args, 'uni_dir_encoder', False)
+        if getattr(args, 'language_embedding', False):
+            self.language_embedding = nn.Parameter(torch.Tensor(embed_tokens.embedding_dim))
+        else:
+            self.language_embedding = None
+        self.layer_residual = getattr(args, 'layer_residual', False)
 
     def build_encoder_layer(self, args):
         return EncoderLayer(args)
@@ -51,13 +57,20 @@ class Encoder(TransformerEncoder):
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
+        # 在变换维度之后加上
+        if self.language_embedding is not None:
+            x = x + self.language_embedding
+
         # compute padding mask
         encoder_padding_mask = src_tokens.eq(self.padding_idx)
         self_attn_mask = self.buffered_future_mask(x) if self.uni_dir else None
         encoder_states = [x]
         # encoder layers
         for layer in self.layers:
+            y = x
             x = layer(x, encoder_padding_mask, self_attn_mask)
+            if self.layer_residual:
+                x = x + y
             encoder_states.append(x)   # 把embedding的保存下来，最后一层不要了
 
         if self.layer_norm is not None:

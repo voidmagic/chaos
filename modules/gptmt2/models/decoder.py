@@ -1,6 +1,7 @@
 from typing import Optional, Dict, List
 
 import torch
+import torch.nn as nn
 from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.transformer import TransformerDecoder
 
@@ -8,10 +9,15 @@ from .decoder_layer import DecoderLayer
 
 
 class Decoder(TransformerDecoder):
-    def __init__(self, args, dictionary, embed_tokens, no_cross_attention=True):
+    def __init__(self, args, dictionary, embed_tokens, no_cross_attention=False):
         super(Decoder, self).__init__(args, dictionary, embed_tokens, no_cross_attention)
         self.no_cross_attention = getattr(args, 'no_cross_attention', False)
         self.layer_wise_attention = getattr(args, 'layer_wise_attention', False)
+        if getattr(args, 'language_embedding', False):
+            self.language_embedding = nn.Parameter(torch.Tensor(embed_tokens.embedding_dim))
+        else:
+            self.language_embedding = None
+        self.layer_residual = getattr(args, 'layer_residual', False)
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
         if getattr(args, 'no_cross_attention', False):
@@ -65,6 +71,10 @@ class Decoder(TransformerDecoder):
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
+        # 在变换维度之后加上
+        if self.language_embedding is not None:
+            x = x + self.language_embedding
+
         self_attn_padding_mask = prev_output_tokens.eq(self.padding_idx)
 
         # decoder layers
@@ -79,7 +89,7 @@ class Decoder(TransformerDecoder):
                 encoder_state = encoder_out.encoder_states[idx]
             else:
                 encoder_state = encoder_out.encoder_out
-
+            y = x
             x, layer_attn, _ = layer(
                 x,
                 encoder_state,
@@ -90,6 +100,8 @@ class Decoder(TransformerDecoder):
                 need_attn=bool((idx == alignment_layer)),
                 need_head_weights=bool((idx == alignment_layer)),
             )
+            if self.layer_residual:
+                x = x + y
             inner_states.append(x)
             if layer_attn is not None and idx == alignment_layer:
                 attn = layer_attn.float().to(x)
