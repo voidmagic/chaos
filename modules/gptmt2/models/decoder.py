@@ -6,11 +6,25 @@ from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.transformer import TransformerDecoder
 
 from .decoder_layer import DecoderLayer
+from .layer_drop import LayerDropModuleList
 
 
 class Decoder(TransformerDecoder):
     def __init__(self, args, dictionary, embed_tokens, no_cross_attention=False):
         super(Decoder, self).__init__(args, dictionary, embed_tokens, no_cross_attention)
+
+        if self.decoder_layerdrop > 0.0:
+            self.layers = LayerDropModuleList(p=self.decoder_layerdrop)
+        else:
+            self.layers = nn.ModuleList([])
+        self.layers.extend(
+            [
+                self.build_decoder_layer(args, no_cross_attention)
+                for _ in range(args.decoder_layers)
+            ]
+        )
+        self.num_layers = len(self.layers)
+
         self.no_cross_attention = getattr(args, 'no_cross_attention', False)
         self.layer_wise_attention = getattr(args, 'layer_wise_attention', False)
         if getattr(args, 'language_embedding', False):
@@ -21,7 +35,7 @@ class Decoder(TransformerDecoder):
         self.layer_residual = getattr(args, 'layer_residual', False)
 
     def build_decoder_layer(self, args, no_encoder_attn=False):
-        if getattr(args, 'no_cross_attention', False):
+        if getattr(args, 'no_cross_attention', False) or getattr(args, 'layer_wise_attention', False):
             return DecoderLayer(args, no_encoder_attn=True)
         else:
             return super(Decoder, self).build_decoder_layer(args, no_encoder_attn)
@@ -77,7 +91,13 @@ class Decoder(TransformerDecoder):
         # decoder layers
         attn: Optional[torch.Tensor] = None
         inner_states: List[Optional[torch.Tensor]] = [x]
-        for idx, layer in enumerate(self.layers):
+
+
+        layers = self.layers.with_drop(reset=False) if isinstance(self.layers, LayerDropModuleList) else self.layers
+        layers = [layer for layer in layers]
+        x += sum([empty_layer for empty_layer in layers if isinstance(empty_layer, torch.Tensor)] + [0.]) * 0.
+        layers = [layer for layer in layers if not isinstance(layer, torch.Tensor)]
+        for idx, layer in enumerate(layers):
             if incremental_state is None and not full_context_alignment:
                 self_attn_mask = self.buffered_future_mask(x)
             else:

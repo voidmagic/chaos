@@ -82,7 +82,10 @@ class DecoderLayer(TransformerDecoderLayer):
             else:
                 y = torch.cat((encoder_out + language_embedding[0], x + language_embedding[1]), dim=0)
         else:
-            y = x
+            if language_embedding is None:
+                y = x
+            else:
+                y = x + language_embedding[1]
 
         x, attn = self.self_attn(
             query=x,

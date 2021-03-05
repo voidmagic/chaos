@@ -7,11 +7,22 @@ from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.models.transformer import TransformerEncoder
 
 from .encoder_layer import EncoderLayer
+from .layer_drop import LayerDropModuleList
 
 
 class Encoder(TransformerEncoder):
     def __init__(self, args, src_dict, embed_tokens):
         super(Encoder, self).__init__(args, src_dict, embed_tokens)
+
+        if self.encoder_layerdrop > 0.0:
+            self.layers = LayerDropModuleList(p=self.encoder_layerdrop)
+        else:
+            self.layers = nn.ModuleList([])
+        self.layers.extend(
+            [self.build_encoder_layer(args) for i in range(args.encoder_layers)]
+        )
+        self.num_layers = len(self.layers)
+
         self._future_mask = torch.empty(0)
         self.uni_dir = getattr(args, 'uni_dir_encoder', False)
         if getattr(args, 'language_embedding', False):
@@ -64,7 +75,12 @@ class Encoder(TransformerEncoder):
         self_attn_mask = self.buffered_future_mask(x) if self.uni_dir else None
         encoder_states = [x]
         # encoder layers
-        for layer in self.layers:
+
+        layers = self.layers.with_drop(reset=True) if isinstance(self.layers, LayerDropModuleList) else self.layers
+        layers = [layer for layer in layers]
+        x += sum([empty_layer for empty_layer in layers if isinstance(empty_layer, torch.Tensor)] + [0.]) * 0.
+        layers = [layer for layer in layers if not isinstance(layer, torch.Tensor)]
+        for layer in layers:
             y = x
             x = layer(x, encoder_padding_mask, self_attn_mask, language_embedding=self.language_embedding)
             if self.layer_residual:
