@@ -103,9 +103,9 @@ class Decoder(TransformerDecoder):
             else:
                 self_attn_mask = None
             if self.layer_wise_attention:
-                encoder_state = encoder_out.encoder_states[idx]
+                encoder_state = encoder_out.encoder_states[idx] if encoder_out is not None else None
             else:
-                encoder_state = encoder_out.encoder_out
+                encoder_state = encoder_out.encoder_out if encoder_out is not None else None
             y = x
             x, layer_attn, _ = layer(
                 x,

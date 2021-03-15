@@ -62,6 +62,9 @@ class ShareEncoderDecoderTransformerModel(TransformerModel):
         else:
             return TransformerModel.build_decoder(args, tgt_dict, embed_tokens)
 
+    def load_state_dict(self, state_dict, strict=True, args=None):
+        return super(ShareEncoderDecoderTransformerModel, self).load_state_dict(state_dict, False, args)
+
 
 @register_model_architecture("share_encoder_decoder_transformer", "share_small")
 def share_encoder_decoder_transformer_base_arch(args):
