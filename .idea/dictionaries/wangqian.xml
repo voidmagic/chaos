@@ -2,6 +2,8 @@
   <dictionary name="wangqian">
     <words>
       <w>ckpts</w>
+      <w>cuda</w>
+      <w>datasets</w>
       <w>fairseq</w>
       <w>gmnmt</w>
       <w>hiddens</w>

@@ -66,10 +66,11 @@ def main():
     parser.add_argument("data")
     parser.add_argument("--lang-pairs")
     parser.add_argument("--output-dir")
+    parser.add_argument("--part", default='train,valid,test')
     args = parser.parse_args()
     lang_pairs = args.lang_pairs.split(',')
     lang_pairs = [lang_pair.split('-') for lang_pair in lang_pairs]
-    for split in ['train', 'valid', 'test']:
+    for split in args.part.split(','):
         process(split, lang_pairs, args.data, args.output_dir)
 
 

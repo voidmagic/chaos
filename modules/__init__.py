@@ -9,11 +9,16 @@ from . import translation
 from . import positional_embedding
 from . import sync_mnmt
 from . import gptmt2
+from . import auto_share
+from . import gptmt3
 
 
 # add preset arguments
 import sys
-if 'fairseq-train' in sys.argv[0]:
+if '--no-default' in sys.argv:
+    sys.argv.remove('--no-default')
+    pass
+elif 'fairseq-train' in sys.argv[0]:
     # --optimizer adam
     if '--optimizer' not in sys.argv:
         sys.argv += ['--optimizer', 'adam']

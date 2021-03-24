@@ -1,51 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" serverName="nlpr">
+  <component name="PublishConfigData" serverName="57">
     <serverData>
-      <paths name="29">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/home/sdc/qwang/000-code/chaos" local="$PROJECT_DIR$" web="/" />
-          </mappings>
-          <excludedPaths>
-            <excludedPath local="true" path="$PROJECT_DIR$/data" />
-          </excludedPaths>
-        </serverdata>
-      </paths>
-      <paths name="35">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/home/qwang/000-code/chaos" local="$PROJECT_DIR$" web="/" />
-          </mappings>
-          <excludedPaths>
-            <excludedPath local="true" path="$PROJECT_DIR$/data" />
-          </excludedPaths>
-        </serverdata>
-      </paths>
-      <paths name="54">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/home/qwang/000-code/chaos" local="$PROJECT_DIR$" web="/" />
-          </mappings>
-          <excludedPaths>
-            <excludedPath local="true" path="$PROJECT_DIR$/data" />
-          </excludedPaths>
-        </serverdata>
-      </paths>
       <paths name="57">
         <serverdata>
           <mappings>
             <mapping deploy="/data/qwang/000-code/chaos" local="$PROJECT_DIR$" web="/" />
-          </mappings>
-          <excludedPaths>
-            <excludedPath local="true" path="$PROJECT_DIR$/data" />
-          </excludedPaths>
-        </serverdata>
-      </paths>
-      <paths name="nlpr">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/share/home/ai_wangqian/000-code/chaos" local="$PROJECT_DIR$" web="/" />
           </mappings>
           <excludedPaths>
             <excludedPath local="true" path="$PROJECT_DIR$/data" />

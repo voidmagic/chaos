@@ -2,8 +2,15 @@
 <project version="4">
   <component name="SshConfigs">
     <configs>
-      <sshConfig authType="OPEN_SSH" host="29" id="4f8e056e-2c71-4ccb-b74a-8959c6b7f943" port="22" nameFormat="DESCRIPTIVE" username="qwang" />
-      <sshConfig authType="OPEN_SSH" host="nlpr" id="4c23a49d-0370-4ade-b117-12bff52acf71" port="22" nameFormat="DESCRIPTIVE" username="ai_wangqian" />
+      <sshConfig authType="OPEN_SSH" host="29" id="4f8e056e-2c71-4ccb-b74a-8959c6b7f943" port="22" customName="29" nameFormat="CUSTOM" username="qwang">
+        <option name="customName" value="29" />
+      </sshConfig>
+      <sshConfig authType="OPEN_SSH" host="nlpr" id="4c23a49d-0370-4ade-b117-12bff52acf71" port="22" customName="nlpr" nameFormat="CUSTOM" username="ai_wangqian">
+        <option name="customName" value="nlpr" />
+      </sshConfig>
+      <sshConfig authType="OPEN_SSH" host="172.18.31.57" id="c4c0955f-dd82-449d-a571-a008e1bdd6e5" port="22" customName="57" nameFormat="CUSTOM" username="qwang">
+        <option name="customName" value="57" />
+      </sshConfig>
     </configs>
   </component>
 </project>
