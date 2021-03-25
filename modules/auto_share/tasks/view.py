@@ -4,6 +4,7 @@ import logging
 import torch
 import torch.nn as nn
 import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 logger = logging.getLogger(__name__)
 
 
@@ -79,12 +80,18 @@ class ModelView:
             module_gradients = {lang_pair: self.gradients[lang_pair][short_name] for lang_pair in lang_pairs}
             divergences[name] = calculate_div(module_gradients)
 
-        # 找出散度最大的模块
-        best_name, (best_lang_pairs, _) = sorted(divergences.items(), key=lambda item: -item[1][1])[0]
+        # 找出距离最大的模块，[-1, 1]，-1表示距离最小，1表示最大
+        best_name, (best_lang_pairs, best_score) = sorted(divergences.items(), key=lambda item: -item[1][1])[0]
 
         logger.info('Split shared parameters: {}'.format(best_name))
         logger.info('This parameter is shared by {}'.format(','.join(best_lang_pairs[0] + best_lang_pairs[1])))
         logger.info('After split: {}   {}'.format(','.join(best_lang_pairs[0]), ','.join(best_lang_pairs[1])))
+        logger.info('Cos similarity is {}'.format(best_score))
+
+        if best_score < 0:
+            logger.info('Skip split due to similarity < 0.')
+            return
+
         # 拆分模块
         # 1. 修改container的内容
         # best_name: models.$lang_pair.*
@@ -122,14 +129,15 @@ class ModelView:
 
 
 def calculate_div(module_gradients):
-    # 分成两个类别，返回类别对应的语言，以及类间距离
+    # 分成两个类别，返回类别对应的语言，以及类间距离，使用-cos_sim
+    # 取值范围：[-1, 1]，-1表示最相似，1表示最不相似
     lang_pairs = list(module_gradients.keys())
     if len(lang_pairs) < 2:
-        return [], 0
+        return [], -1
 
     # convert to numpy
     for k in module_gradients.keys():
-        module_gradients[k] = module_gradients[k].cpu().numpy()
+        module_gradients[k] = module_gradients[k].numpy()
 
     # 使用层次聚类
 
@@ -140,7 +148,7 @@ def calculate_div(module_gradients):
         if len(clusters) == 2:
             break
         # 计算每两个cluster之间的距离，记录最小的
-        min_distance = 2
+        min_distance = 1
         min_cluster_index = (-1, -1)
         for i, cluster_i in enumerate(clusters):
             for j, cluster_j in enumerate(clusters):
@@ -163,20 +171,9 @@ def calculate_distance(module_gradients, langs_1, langs_2):
     l2 = [module_gradients[k] for k in langs_2]
     l1_point = np.mean(l1, axis=0)
     l2_point = np.mean(l2, axis=0)
-    return -cos_sim(l1_point, l2_point)
+    return cos_sim(l1_point, l2_point)
 
 
 def cos_sim(vector_a, vector_b):
-    """
-    计算两个向量之间的余弦相似度
-    :param vector_a: 向量 a
-    :param vector_b: 向量 b
-    :return: sim
-    """
-    vector_a = np.mat(vector_a)
-    vector_b = np.mat(vector_b)
-    num = float(vector_a * vector_b.T)
-    denom = np.linalg.norm(vector_a) * np.linalg.norm(vector_b)
-    cos = num / denom
-    sim = 0.5 + 0.5 * cos
-    return sim
+    # [-1, 1]，-1表示相似，1表示不相似
+    return -cosine_similarity([vector_a, vector_b])[0, 1]
