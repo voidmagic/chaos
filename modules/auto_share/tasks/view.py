@@ -80,47 +80,53 @@ class ModelView:
             module_gradients = {lang_pair: self.gradients[lang_pair][short_name] for lang_pair in lang_pairs}
             divergences[name] = calculate_div(module_gradients)
 
-        # 找出距离最大的模块，[-1, 1]，-1表示距离最小，1表示最大
-        best_name, (best_lang_pairs, best_score) = sorted(divergences.items(), key=lambda item: -item[1][1])[0]
+        # 找出距离最大的模块，[-1, 1]，-1表示距离最小
+        sorted_divergences = sorted(divergences.items(), key=lambda item: -item[1][1])
+        best_name, (best_lang_pairs, best_score) = sorted_divergences[0]
 
         logger.info('Split shared parameters: {}'.format(best_name))
         logger.info('This parameter is shared by {}'.format(','.join(best_lang_pairs[0] + best_lang_pairs[1])))
         logger.info('After split: {}   {}'.format(','.join(best_lang_pairs[0]), ','.join(best_lang_pairs[1])))
-        logger.info('Cos similarity is {}'.format(best_score))
+        logger.info('Cos similarity is {}'.format(-best_score))
+
+        count = len([a for a in sorted_divergences if a[1][1] > 0])
+        logger.info('Cos similarity < 0: {} / {}'.format(count, len(sorted_divergences)))
 
         if best_score < 0:
-            logger.info('Skip split due to similarity < 0.')
+            logger.info('Skip split due to similarity > 0.')
             return
 
         # 拆分模块
+        self.split_module(best_name, best_lang_pairs, optimizer)
+
+    def split_module(self, module_to_split, split_lang_pairs, optimizer):
         # 1. 修改container的内容
         # best_name: models.$lang_pair.*
         # best_lang_pairs：两组语言
-        module_base_lang_pair = best_name.split(".")[1]
-        if module_base_lang_pair in best_lang_pairs[0]:
-            self.container[best_name] = best_lang_pairs[0]
-            # 新的参数以best_lang_pairs[1][0]为base
-            new_name = ".".join([best_name.split(".")[0], best_lang_pairs[1][0]] + best_name.split(".")[2:])
-            self.container[new_name] = best_lang_pairs[1]
-        elif module_base_lang_pair in best_lang_pairs[1]:
-            self.container[best_name] = best_lang_pairs[1]
-            # 新的参数以best_lang_pairs[0][0]为base
-            new_name = ".".join([best_name.split(".")[0], best_lang_pairs[0][0]] + best_name.split(".")[2:])
-            self.container[new_name] = best_lang_pairs[0]
+        module_base_lang_pair = module_to_split.split(".")[1]
+        if module_base_lang_pair in split_lang_pairs[0]:
+            pass
+        elif module_base_lang_pair in split_lang_pairs[1]:
+            split_lang_pairs[0], split_lang_pairs[1] = split_lang_pairs[1], split_lang_pairs[0]
         else:
             raise NotImplementedError
 
+        self.container[module_to_split] = split_lang_pairs[0]
+        # 新的参数以best_lang_pairs[1][0]为base
+        new_name = ".".join([module_to_split.split(".")[0], split_lang_pairs[1][0]] + module_to_split.split(".")[2:])
+        self.container[new_name] = split_lang_pairs[1]
+
         # 2. 新建参数
-        lang_pairs = self.container[best_name]
-        parent_module = get_parent_module(self.model, best_name)
-        shared_module = getattr(parent_module, best_name.split(".")[-1])
+        lang_pairs = self.container[module_to_split]
+        parent_module = get_parent_module(self.model, module_to_split)
+        shared_module = getattr(parent_module, module_to_split.split(".")[-1])
         device = list(shared_module.parameters())[0].device
         new_module = copy.deepcopy(shared_module).to(device)
-        setattr(parent_module, best_name.split(".")[-1], new_module)
+        setattr(parent_module, module_to_split.split(".")[-1], new_module)
 
         # 3. 给其他语言也共享了
         for lang_pair in lang_pairs[1:]:
-            module_name = ".".join([best_name.split(".")[0], lang_pair] + best_name.split(".")[2:])
+            module_name = ".".join([module_to_split.split(".")[0], lang_pair] + module_to_split.split(".")[2:])
             parent_module = get_parent_module(self.model, module_name)
             setattr(parent_module, module_name.split(".")[-1], new_module)
 
