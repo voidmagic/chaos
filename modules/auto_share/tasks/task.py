@@ -20,6 +20,8 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
         self.view = None
         self.start_split = 0
         self.cuda = torch.cuda.is_available() and not args.cpu
+        self.split_every = int(os.environ.get('SPLIT_EVERY', '1'))
+        self.grad_valid = os.environ.get('GRAD_VALID', 'multi')
 
     def build_model(self, args):
         model = super(AutoShareTranslationTask, self).build_model(args)
@@ -37,17 +39,19 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
     def begin_epoch(self, epoch, model):
         if epoch < self.start_split or self.criterion is None or self.optimizer is None or self.view is None:
             return
+        if epoch % self.split_every != 1:
+            return
 
         logger.info("Start parameter sharing")
         # requires: criterion optimizer
         model.train()
 
-        if 'multi' in self.datasets:
-            dataset_for_split = self.dataset('multi')
+        if self.grad_valid in self.datasets:
+            dataset_for_split = self.dataset(self.grad_valid)
         else:
             try:
-                self.load_dataset('multi')
-                dataset_for_split = self.dataset('multi')
+                self.load_dataset(self.grad_valid)
+                dataset_for_split = self.dataset(self.grad_valid)
             except FileNotFoundError:
                 dataset_for_split = self.dataset('valid')
 

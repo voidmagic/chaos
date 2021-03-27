@@ -1,3 +1,4 @@
+import os
 import copy
 import logging
 
@@ -60,6 +61,7 @@ class ModelView:
             n: model.keys for n in names
         }
         self.gradients = {lang_pair: {} for lang_pair in model.keys}
+        self.split_all = os.environ.get('SPLIT_ALL', 'FALSE') == 'TRUE'
 
     def accum_gradient(self, lang_pair):
         cur_model = self.model.models[lang_pair]
@@ -80,24 +82,27 @@ class ModelView:
             module_gradients = {lang_pair: self.gradients[lang_pair][short_name] for lang_pair in lang_pairs}
             divergences[name] = calculate_div(module_gradients)
 
-        # 找出距离最大的模块，[-1, 1]，-1表示距离最小
+        count = len([a for a in divergences.values() if a[1] > 0])
+        logger.info('Cos similarity < 0: {} / {}'.format(count, len(divergences.items())))
+
+        # 按距离排序，从大到小，[-1, 1]，-1表示距离最小。
         sorted_divergences = sorted(divergences.items(), key=lambda item: -item[1][1])
-        best_name, (best_lang_pairs, best_score) = sorted_divergences[0]
+        # 所有距离>0的module
+        sorted_divergences = [d for d in sorted_divergences if d[1][1] > 0]
 
-        logger.info('Split shared parameters: {}'.format(best_name))
-        logger.info('This parameter is shared by {}'.format(','.join(best_lang_pairs[0] + best_lang_pairs[1])))
-        logger.info('After split: {}   {}'.format(','.join(best_lang_pairs[0]), ','.join(best_lang_pairs[1])))
-        logger.info('Cos similarity is {}'.format(-best_score))
-
-        count = len([a for a in sorted_divergences if a[1][1] > 0])
-        logger.info('Cos similarity < 0: {} / {}'.format(count, len(sorted_divergences)))
-
-        if best_score < 0:
+        if len(sorted_divergences) == 0:
             logger.info('Skip split due to similarity > 0.')
             return
 
-        # 拆分模块
-        self.split_module(best_name, best_lang_pairs, optimizer)
+        for best_name, (best_lang_pairs, best_score) in sorted_divergences:
+            logger.info('Split shared parameters: {}'.format(best_name))
+            logger.info('This parameter is shared by {}'.format(','.join(best_lang_pairs[0] + best_lang_pairs[1])))
+            logger.info('After split: {}   {}'.format(','.join(best_lang_pairs[0]), ','.join(best_lang_pairs[1])))
+            logger.info('Cos similarity is {}'.format(-best_score))
+            self.split_module(best_name, best_lang_pairs, optimizer)
+
+            if not self.split_all:
+                break
 
     def split_module(self, module_to_split, split_lang_pairs, optimizer):
         # 1. 修改container的内容
