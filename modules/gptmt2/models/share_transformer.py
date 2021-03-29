@@ -90,4 +90,5 @@ def share_encoder_decoder_transformer_base_arch(args):
 def share_encoder_decoder_transformer_big_arch(args):
     args.encoder_normalize_before = True
     args.decoder_normalize_before = True
+    args.activation_fn = getattr(args, "activation_fn", "gelu")
     transformer_wmt_en_de_big(args)

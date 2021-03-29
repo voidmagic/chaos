@@ -1,10 +1,16 @@
+import logging
 import os
 
-from fairseq.data import data_utils, LanguagePairDataset, ConcatDataset
+import torch
+from fairseq.data import data_utils, LanguagePairDataset
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask
 
+from modules.gptmt2.models.share_transformer import ShareEncoderDecoderTransformerModel
 from modules.gptmt2.tasks.dataset import Dataset, FakeLanguagePairDataset
+
+
+logger = logging.getLogger(__name__)
 
 
 @register_task("lm_mt_task")
@@ -13,7 +19,7 @@ class GPTMTTask(TranslationTask):
     def add_args(parser):
         TranslationTask.add_args(parser)
         parser.add_argument('--reverse-source', action='store_true', default=False)
-        # 预训练保存的路径
+        # 预训练数据保存的路径
         parser.add_argument('--pre-train-source', default=None, metavar='SRC')
         parser.add_argument('--pre-train-target', default=None, metavar='SRC')
 
@@ -39,3 +45,12 @@ class GPTMTTask(TranslationTask):
         dataset = FakeLanguagePairDataset(dataset, dataset.sizes, self.src_dict,
                                           left_pad_source=self.args.left_pad_source)
         return dataset
+
+    def build_model(self, args):
+        model: ShareEncoderDecoderTransformerModel = super(GPTMTTask, self).build_model(args)
+        pretrain_path = os.environ.get('PRETRAIN', None)
+        if pretrain_path is not None:
+            logger.info('Load pretrain model from {}'.format(pretrain_path))
+            stat = torch.load(pretrain_path)['model']
+            model.load_state_dict({})
+        return model
