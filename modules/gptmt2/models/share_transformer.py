@@ -65,6 +65,9 @@ class ShareEncoderDecoderTransformerModel(TransformerModel):
     def load_state_dict(self, state_dict, strict=True, args=None):
         return super(ShareEncoderDecoderTransformerModel, self).load_state_dict(state_dict, False, args)
 
+    def upgrade_state_dict(self, state_dict):
+        pass
+
 
 @register_model_architecture("share_encoder_decoder_transformer", "share_small")
 def share_encoder_decoder_transformer_base_arch(args):
