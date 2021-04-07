@@ -20,7 +20,7 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
         self.criterion = None
         self.optimizer = None
         self.view = None
-        self.start_split = 0
+        self.start_split = int(os.environ.get('SPLIT_START', '10'))
         self.cuda = torch.cuda.is_available() and not args.cpu
         self.split_every = int(os.environ.get('SPLIT_EVERY', '1'))
         self.grad_valid = os.environ.get('GRAD_VALID', 'multi')
@@ -39,12 +39,16 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
         return model
 
     def begin_epoch(self, epoch, model):
-        if epoch < self.start_split or self.criterion is None or self.optimizer is None or self.view is None:
+        if epoch < self.start_split or self.view is None:
             return
         if epoch % self.split_every != 1 and self.split_every != 1:
             # 1. 每split_every个epoch运行一次，否则返回（!=1因为epoch从1开始）
             # 2. 如果split_every为1，每次都运行
             return
+
+        trainer = get_trainer()
+        criterion = trainer.criterion
+        optimizer = trainer.optimizer
 
         logger.info("Start parameter sharing")
         # requires: criterion optimizer
@@ -74,24 +78,12 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
             if self.cuda:
                 sample = utils.move_to_cuda(sample)
             for lang_pair in self.lang_pairs:
-                loss, _, _ = self.criterion(model.models[lang_pair], sample[lang_pair])
-                self.optimizer.backward(loss)
+                loss, _, _ = criterion(model.models[lang_pair], sample[lang_pair])
+                optimizer.backward(loss)
                 self.view.accum_gradient(lang_pair)
                 model.zero_grad()
-            self.view.auto_split()
-            trainer = get_trainer()
-            trainer.reinitialize()
-
-    def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
-        self.optimizer = optimizer
-        self.criterion = criterion
-        self.maybe_split_first(model)
-        return super(AutoShareTranslationTask, self).train_step(sample, model, criterion, optimizer, update_num, ignore_grad)
-
-    def maybe_split_first(self, model):
-        if self.start_split == 0:
-            self.start_split = 1
-            self.begin_epoch(1, model=model)
+        self.view.auto_split()
+        trainer.reinitialize()
 
 
 def get_trainer() -> Trainer:
