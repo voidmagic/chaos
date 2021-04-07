@@ -71,7 +71,7 @@ class ModelView:
             grad = torch.cat([module.weight.grad.view(-1), module.bias.grad.view(-1)]).data.cpu()
             self.gradients[lang_pair][n] = grad + self.gradients[lang_pair].get(n, 0)
 
-    def auto_split(self, optimizer):
+    def auto_split(self, optimizer=None):
         logger.info('Detect split parameters by grad')
         # 根据梯度，计算每个模块的散度
         divergences = {}
@@ -136,7 +136,8 @@ class ModelView:
             setattr(parent_module, module_name.split(".")[-1], new_module)
 
         # 4. 添加到优化器中
-        optimizer.optimizer.add_param_group({"params": new_module.parameters()})
+        if optimizer is not None:
+            optimizer.optimizer.add_param_group({"params": new_module.parameters()})
 
 
 def calculate_div(module_gradients):

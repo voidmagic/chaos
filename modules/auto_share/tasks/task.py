@@ -5,6 +5,8 @@ import torch
 from fairseq import utils
 from fairseq.tasks import register_task
 from fairseq.tasks.multilingual_translation import MultilingualTranslationTask
+from fairseq.trainer import Trainer
+
 from .view import ModelView
 
 
@@ -39,7 +41,9 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
     def begin_epoch(self, epoch, model):
         if epoch < self.start_split or self.criterion is None or self.optimizer is None or self.view is None:
             return
-        if epoch % self.split_every != 1:
+        if epoch % self.split_every != 1 and self.split_every != 1:
+            # 1. 每split_every个epoch运行一次，否则返回（!=1因为epoch从1开始）
+            # 2. 如果split_every为1，每次都运行
             return
 
         logger.info("Start parameter sharing")
@@ -74,7 +78,9 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
                 self.optimizer.backward(loss)
                 self.view.accum_gradient(lang_pair)
                 model.zero_grad()
-        self.view.auto_split(self.optimizer)
+            self.view.auto_split()
+            trainer = get_trainer()
+            trainer.reinitialize()
 
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         self.optimizer = optimizer
@@ -86,3 +92,10 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
         if self.start_split == 0:
             self.start_split = 1
             self.begin_epoch(1, model=model)
+
+
+def get_trainer() -> Trainer:
+    import gc
+    for obj in gc.get_objects():
+        if isinstance(obj, Trainer):
+            return obj
