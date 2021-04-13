@@ -5,12 +5,13 @@ import os
 import torch
 import random
 from fairseq import utils
-from fairseq.data import RoundRobinZipDatasets
+from fairseq.data import RoundRobinZipDatasets, iterators, FairseqDataset, data_utils
 from fairseq.tasks import register_task
 from fairseq.tasks.multilingual_translation import MultilingualTranslationTask
 from fairseq.trainer import Trainer
 
 from .dataset import FastRoundRobinDataset
+from .sample_iterator import MyEpochBatchIterator
 from .view import ModelView
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 class AutoShareTranslationTask(MultilingualTranslationTask):
     def __init__(self, args, dicts, training):
         super().__init__(args, dicts, training)
+        self.src_dict = self.tgt_dict = list(dicts.values())[0]
         self.view = None
         self.cuda = torch.cuda.is_available() and not args.cpu
         self.start_split = int(os.environ.get('SPLIT_START', '10'))
@@ -112,6 +114,90 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
         }
         p_scale = sizes[lang_pair] / max(sizes.values())
         return random.random() > p_scale
+
+    def get_batch_iterator(
+            self,
+            dataset,
+            max_tokens=None,
+            max_sentences=None,
+            max_positions=None,
+            ignore_invalid_inputs=False,
+            required_batch_size_multiple=1,
+            seed=1,
+            num_shards=1,
+            shard_id=0,
+            num_workers=0,
+            epoch=1,
+            data_buffer_size=0,
+            disable_iterator_cache=False,
+    ):
+        if not isinstance(dataset, FastRoundRobinDataset):
+            # 不是训练集数据
+            return super(AutoShareTranslationTask, self).get_batch_iterator(
+                dataset,
+                max_tokens,
+                max_sentences,
+                max_positions,
+                ignore_invalid_inputs,
+                required_batch_size_multiple,
+                seed,
+                num_shards,
+                shard_id,
+                num_workers,
+                epoch,
+                data_buffer_size,
+                disable_iterator_cache)
+
+        if dataset in self.dataset_to_epoch_iter:
+            logger.debug("reusing EpochBatchIterator for epoch {}".format(epoch))
+            return self.dataset_to_epoch_iter[dataset]
+
+        # initialize the dataset with the correct starting epoch
+        dataset.set_epoch(epoch)
+
+        assert isinstance(dataset, FastRoundRobinDataset)
+        # get indices ordered by example size
+        with data_utils.numpy_seed(seed):
+            indices = {
+                key: value.ordered_indices()
+                for key, value in dataset.datasets.items()
+            }
+
+        # filter examples that are too large
+        indices = {
+            key: self.filter_indices_by_size(indices[key], value, max_positions[key], ignore_invalid_inputs)
+            for key, value in dataset.datasets.items()
+        }
+
+        # create mini-batches with given size constraints
+        batch_sampler = {
+            key: value.batch_by_size(
+                indices[key],
+                max_tokens=max_tokens,
+                max_sentences=max_sentences,
+                required_batch_size_multiple=required_batch_size_multiple,
+            )
+            for key, value in dataset.datasets.items()
+        }
+
+        # return a reusable, sharded iterator
+        epoch_iter = {
+            key: iterators.EpochBatchIterator(
+                dataset=value,
+                collate_fn=value.collater,
+                batch_sampler=batch_sampler[key],
+                seed=seed,
+                num_shards=num_shards,
+                shard_id=shard_id,
+                num_workers=num_workers,
+                epoch=epoch,
+                buffer_size=data_buffer_size,
+            )
+            for key, value in dataset.datasets.items()
+        }
+
+        self.dataset_to_epoch_iter[dataset] = MyEpochBatchIterator(epoch_iter)
+        return self.dataset_to_epoch_iter[dataset]
 
 
 def get_trainer() -> Trainer:
