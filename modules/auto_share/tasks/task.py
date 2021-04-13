@@ -1,18 +1,17 @@
-import os
+import contextlib
 import logging
-from collections import OrderedDict
+import os
 
 import torch
+import random
 from fairseq import utils
 from fairseq.data import RoundRobinZipDatasets
 from fairseq.tasks import register_task
 from fairseq.tasks.multilingual_translation import MultilingualTranslationTask
-from fairseq.tasks.translation import load_langpair_dataset
 from fairseq.trainer import Trainer
 
-from .dataset import TemperatureRoundRobinDataset
+from .dataset import FastRoundRobinDataset
 from .view import ModelView
-
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +21,16 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
     def __init__(self, args, dicts, training):
         super().__init__(args, dicts, training)
         self.view = None
-        self.start_split = int(os.environ.get('SPLIT_START', '10'))
         self.cuda = torch.cuda.is_available() and not args.cpu
+        self.start_split = int(os.environ.get('SPLIT_START', '10'))
         self.split_every = int(os.environ.get('SPLIT_EVERY', '1'))
         self.grad_valid = os.environ.get('GRAD_VALID', 'multi')
+
+        self.sample_method = os.environ.get('SAMPLE_METHOD', 'uniform')
+        self.sample_temperature = int(os.environ.get('TEMPERATURE', '5'))
+        assert self.sample_method in ['uniform', 'temperature', 'proportional']
+        if self.sample_method == 'proportional':
+            self.sample_temperature = 1  # 等价
 
     def build_model(self, args):
         model = super(AutoShareTranslationTask, self).build_model(args)
@@ -88,64 +93,25 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
         trainer.reinitialize()
 
     def load_dataset(self, split, epoch=1, **kwargs):
-        """Load a dataset split."""
-        # 开始
-        paths = utils.split_paths(self.args.data)
-        assert len(paths) > 0
-        data_path = paths[(epoch - 1) % len(paths)]
-
-        def language_pair_dataset(lang_pair):
-            src, tgt = lang_pair.split("-")
-            langpair_dataset = load_langpair_dataset(
-                data_path,
-                split,
-                src,
-                self.dicts[src],
-                tgt,
-                self.dicts[tgt],
-                combine=True,
-                dataset_impl=self.args.dataset_impl,
-                upsample_primary=self.args.upsample_primary,
-                left_pad_source=self.args.left_pad_source,
-                left_pad_target=self.args.left_pad_target,
-                max_source_positions=self.args.max_source_positions,
-                max_target_positions=self.args.max_target_positions,
-            )
-            return self.alter_dataset_langtok(
-                langpair_dataset,
-                src_eos=self.dicts[src].eos(),
-                src_lang=src,
-                tgt_eos=self.dicts[tgt].eos(),
-                tgt_lang=tgt,
-            )
-
-        self.datasets[split] = RoundRobinZipDatasets(
-            OrderedDict(
-                [
-                    (lang_pair, language_pair_dataset(lang_pair))
-                    for lang_pair in self.lang_pairs
-                ]
-            ),
-            eval_key=None
-            if self.training
-            else "%s-%s" % (self.args.source_lang, self.args.target_lang),
-        )
-        # 结束
-
-        # 使用重写的TemperatureRoundRobinDataset
+        super(AutoShareTranslationTask, self).load_dataset(split, epoch)
         if split == 'train':
-            self.datasets[split] = TemperatureRoundRobinDataset(
-                OrderedDict(
-                    [
-                        (lang_pair, language_pair_dataset(lang_pair))
-                        for lang_pair in self.lang_pairs
-                    ]
-                ),
-                eval_key=None
-                if self.training
-                else "%s-%s" % (self.args.source_lang, self.args.target_lang),
-            )
+            old_dataset: RoundRobinZipDatasets = self.datasets[split]
+            self.datasets[split] = FastRoundRobinDataset(datasets=old_dataset.datasets, eval_key=old_dataset.eval_key)
 
+    def _per_lang_pair_train_loss(self, lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad):
+        ignore_grad = ignore_grad or self.sampler(lang_pair)
+        return super(AutoShareTranslationTask, self)._per_lang_pair_train_loss(
+            lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad)
+
+    def sampler(self, lang_pair):
+        if self.sample_method == 'uniform':
+            return True
+        sizes = {
+            key: len(self.dataset('train').datasets[key]) ** (1 / self.sample_temperature)
+            for key in self.dataset('train').datasets.keys()
+        }
+        p_scale = sizes[lang_pair] / max(sizes.values())
+        return random.random() > p_scale
 
 
 def get_trainer() -> Trainer:

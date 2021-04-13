@@ -2,6 +2,7 @@
   <dictionary name="wangqian">
     <words>
       <w>ckpts</w>
+      <w>collater</w>
       <w>cuda</w>
       <w>datasets</w>
       <w>fairseq</w>

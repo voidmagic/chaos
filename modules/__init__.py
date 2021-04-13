@@ -11,7 +11,6 @@ from . import sync_mnmt
 from . import gptmt2
 from . import auto_share
 from . import gptmt3
-from . import mnmt
 
 
 # add preset arguments
