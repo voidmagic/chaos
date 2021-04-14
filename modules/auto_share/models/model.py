@@ -1,9 +1,7 @@
 
 from collections import OrderedDict
 
-from fairseq import utils
 from fairseq.models import (
-    FairseqMultiModel,
     register_model,
     register_model_architecture,
 )
@@ -96,10 +94,6 @@ class Model(MultilingualTransformerModel):
 @register_model_architecture("auto_share_multilingual", "auto_base")
 def base_multilingual_auto_share_architecture(args):
     base_architecture(args)
-    args.share_encoder_embeddings = getattr(args, "share_encoder_embeddings", False)
-    args.share_decoder_embeddings = getattr(args, "share_decoder_embeddings", False)
-    args.share_encoders = getattr(args, "share_encoders", False)
-    args.share_decoders = getattr(args, "share_decoders", False)
 
 
 @register_model_architecture("auto_share_multilingual", "auto_small")

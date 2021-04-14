@@ -1,11 +1,9 @@
-import contextlib
 import logging
 import os
 
 import torch
-import random
 from fairseq import utils
-from fairseq.data import RoundRobinZipDatasets, iterators, FairseqDataset, data_utils
+from fairseq.data import RoundRobinZipDatasets, iterators, data_utils
 from fairseq.tasks import register_task
 from fairseq.tasks.multilingual_translation import MultilingualTranslationTask
 from fairseq.trainer import Trainer
@@ -32,6 +30,7 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
         self.sample_temperature = int(os.environ.get('TEMPERATURE', '5'))
         assert self.sample_method in ['uniform', 'temperature', 'proportional']
         if self.sample_method == 'proportional':
+            self.sample_method = 'temperature'
             self.sample_temperature = 1  # 等价
 
     def build_model(self, args):
@@ -99,21 +98,6 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
         if split == 'train':
             old_dataset: RoundRobinZipDatasets = self.datasets[split]
             self.datasets[split] = FastRoundRobinDataset(datasets=old_dataset.datasets, eval_key=old_dataset.eval_key)
-
-    def _per_lang_pair_train_loss(self, lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad):
-        ignore_grad = ignore_grad or self.sampler(lang_pair)
-        return super(AutoShareTranslationTask, self)._per_lang_pair_train_loss(
-            lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad)
-
-    def sampler(self, lang_pair):
-        if self.sample_method == 'uniform':
-            return True
-        sizes = {
-            key: len(self.dataset('train').datasets[key]) ** (1 / self.sample_temperature)
-            for key in self.dataset('train').datasets.keys()
-        }
-        p_scale = sizes[lang_pair] / max(sizes.values())
-        return random.random() > p_scale
 
     def get_batch_iterator(
             self,
@@ -189,14 +173,30 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
                 seed=seed,
                 num_shards=num_shards,
                 shard_id=shard_id,
-                num_workers=num_workers,
+                num_workers=0,
                 epoch=epoch,
                 buffer_size=data_buffer_size,
             )
             for key, value in dataset.datasets.items()
         }
 
-        self.dataset_to_epoch_iter[dataset] = MyEpochBatchIterator(epoch_iter)
+        assert self.sample_method in ['temperature', 'uniform']
+        if self.sample_method == 'temperature':
+            sizes = {
+                key: len(self.dataset('train').datasets[key]) ** (1 / self.sample_temperature)
+                for key in self.dataset('train').datasets.keys()
+            }
+            sample_prop = {
+                key: sizes[key] / sum(sizes.values())
+                for key in self.dataset('train').datasets.keys()
+            }
+        else:
+            sample_prop = {
+                key: 1 / len(self.dataset('train').datasets.keys())
+                for key in self.dataset('train').datasets.keys()
+            }
+
+        self.dataset_to_epoch_iter[dataset] = MyEpochBatchIterator(epoch_iter, sample_prop)
         return self.dataset_to_epoch_iter[dataset]
 
 
