@@ -16,6 +16,8 @@ class BidirectionalTransformerModel(TransformerModel):
             dec_layer.self_attn.out_proj = enc_layer.self_attn.out_proj
             dec_layer.fc1 = enc_layer.fc1
             dec_layer.fc2 = enc_layer.fc2
+            dec_layer.self_attn_layer_norm = enc_layer.self_attn_layer_norm
+            dec_layer.final_layer_norm = enc_layer.final_layer_norm
 
 
 @register_model_architecture('bidirectional_transformer', 'iwslt_bidir_arch')

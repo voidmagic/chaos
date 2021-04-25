@@ -54,3 +54,8 @@ class GPTMTTask(TranslationTask):
             stat = torch.load(pretrain_path)['model']
             model.load_state_dict({})
         return model
+
+    def build_generator(self, *args, **kwargs):
+        generator = super(GPTMTTask, self).build_generator(*args, **kwargs)
+        generator.search.stop_on_max_len = True
+        return generator
