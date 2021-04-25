@@ -140,20 +140,18 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
         dataset.set_epoch(epoch)
 
         assert isinstance(dataset, FastRoundRobinDataset)
-        # get indices ordered by example size
+        logger.info("get indices ordered by example size")
         with data_utils.numpy_seed(seed):
             indices = {
                 key: value.ordered_indices()
                 for key, value in dataset.datasets.items()
             }
-
-        # filter examples that are too large
+        logger.info("filter examples that are too large")
         indices = {
             key: self.filter_indices_by_size(indices[key], value, max_positions[key], ignore_invalid_inputs)
             for key, value in dataset.datasets.items()
         }
-
-        # create mini-batches with given size constraints
+        logger.info("create mini-batches with given size constraints")
         batch_sampler = {
             key: value.batch_by_size(
                 indices[key],
@@ -163,8 +161,7 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
             )
             for key, value in dataset.datasets.items()
         }
-
-        # return a reusable, sharded iterator
+        logger.info("return a reusable, sharded iterator")
         epoch_iter = {
             key: iterators.EpochBatchIterator(
                 dataset=value,
@@ -182,12 +179,21 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
 
         assert self.sample_method in ['temperature', 'uniform']
         if self.sample_method == 'temperature':
+            # sizes = {
+            #     key: len(self.dataset('train').datasets[key]) ** (1 / self.sample_temperature)
+            #     for key in self.dataset('train').datasets.keys()
+            # }
+            # sample_prop = {
+            #     key: sizes[key] / sum(sizes.values())
+            #     for key in self.dataset('train').datasets.keys()
+            # }
+
             sizes = {
-                key: len(self.dataset('train').datasets[key]) ** (1 / self.sample_temperature)
-                for key in self.dataset('train').datasets.keys()
+                key: len(epoch_iter[key]) ** (1 / self.sample_temperature)
+                for key in epoch_iter.keys()
             }
             sample_prop = {
-                key: sizes[key] / sum(sizes.values())
+                key: sizes[key] / max(sizes.values())
                 for key in self.dataset('train').datasets.keys()
             }
         else:

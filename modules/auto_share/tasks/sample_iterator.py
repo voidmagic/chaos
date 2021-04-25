@@ -52,12 +52,10 @@ class BatchIterator:
         self.n = 0
         logger.info('Number of batches: ')
         for lang_pair, it in sorted(self.iterators.items(), key=lambda p: -len(p[1])):
-            logger.info('{}: {} - {}'.format(lang_pair, len(it), int(len(self) * self.sample_prop[lang_pair])))
+            logger.info('{}: {} - {}'.format(lang_pair, len(it), int(len(it) / self.sample_prop[lang_pair])))
 
     def __len__(self):
-        # 只是大概，因为sample_prop是按照样本数目计算的，而len是按照batch数目计算的
-        lang_pair, it = sorted(self.iterators.items(), key=lambda p: -len(p[1]))[0]
-        return int(len(it) / self.sample_prop[lang_pair])
+        return sum([int(len(value) / self.sample_prop[key]) for key, value in self.iterators.items()])
 
     def __iter__(self):
         while True:
