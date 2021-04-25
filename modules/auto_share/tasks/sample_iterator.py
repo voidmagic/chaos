@@ -61,7 +61,9 @@ class BatchIterator:
         while True:
             # 随机挑选一种语言，采样一个batch
             self.n += 1
-            lang_pair = random.choices(list(self.sample_prop.keys()), weights=list(self.sample_prop.values()))[0]
+            lang_pairs = list(self.sample_prop.keys())
+            sample_prop_normalized = [self.sample_prop[lang_pair] / sum(self.sample_prop.values()) for lang_pair in lang_pairs]
+            lang_pair = random.choices(lang_pairs, weights=sample_prop_normalized)[0]
             if not self.iterators[lang_pair].has_next():
                 self.iterators[lang_pair] = self.epoch_iter[lang_pair].next_epoch_itr(
                     shuffle=True, fix_batches_to_gpus=False)
