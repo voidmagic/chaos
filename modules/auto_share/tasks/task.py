@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 class AutoShareTranslationTask(MultilingualTranslationTask):
     def __init__(self, args, dicts, training):
         super().__init__(args, dicts, training)
+        print(args.distributed_num_procs)
+        assert args.distributed_num_procs == 1, "目前只能单卡训练，多卡在某些情况会卡死，且多卡情况下参数拆分后不同卡上的新参数无法同步"
         self.src_dict = self.tgt_dict = list(dicts.values())[0]
         self.view = None
         self.cuda = torch.cuda.is_available() and not args.cpu
@@ -179,15 +181,6 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
 
         assert self.sample_method in ['temperature', 'uniform']
         if self.sample_method == 'temperature':
-            # sizes = {
-            #     key: len(self.dataset('train').datasets[key]) ** (1 / self.sample_temperature)
-            #     for key in self.dataset('train').datasets.keys()
-            # }
-            # sample_prop = {
-            #     key: sizes[key] / sum(sizes.values())
-            #     for key in self.dataset('train').datasets.keys()
-            # }
-
             sizes = {
                 key: len(epoch_iter[key]) ** (1 / self.sample_temperature)
                 for key in epoch_iter.keys()
