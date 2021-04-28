@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 class AutoShareTranslationTask(MultilingualTranslationTask):
     def __init__(self, args, dicts, training):
         super().__init__(args, dicts, training)
-        print(args.distributed_num_procs)
         assert args.distributed_num_procs == 1, "目前只能单卡训练，多卡在某些情况会卡死，且多卡情况下参数拆分后不同卡上的新参数无法同步"
         self.src_dict = self.tgt_dict = list(dicts.values())[0]
         self.view = None
@@ -89,6 +88,8 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
                 sample = utils.move_to_cuda(sample)
             for lang_pair in self.lang_pairs:
                 loss, _, _ = criterion(model.models[lang_pair], sample[lang_pair])
+                # 缩放一下，避免出现NAN
+                loss /= len(batch_iterator)
                 optimizer.backward(loss)
                 self.view.accum_gradient(lang_pair)
                 model.zero_grad()

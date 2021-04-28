@@ -66,10 +66,10 @@ class ModelView:
     def accum_gradient(self, lang_pair):
         cur_model = self.model.models[lang_pair]
         names = list(set(list(get_model_parameters(cur_model))))
-        for n in names:
-            module = name2module(cur_model, n)
+        for name in names:
+            module = name2module(cur_model, name)
             grad = torch.cat([module.weight.grad.view(-1), module.bias.grad.view(-1)]).data.cpu()
-            self.gradients[lang_pair][n] = grad + self.gradients[lang_pair].get(n, 0)
+            self.gradients[lang_pair][name] = grad + self.gradients[lang_pair].get(name, 0)
 
     def auto_split(self, optimizer=None):
         logger.info('Detect split parameters by grad')
