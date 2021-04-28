@@ -191,10 +191,7 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
                 for key in self.dataset('train').datasets.keys()
             }
         else:
-            sample_prop = {
-                key: 1 / len(self.dataset('train').datasets.keys())
-                for key in self.dataset('train').datasets.keys()
-            }
+            sample_prop = {key: 1 for key in self.dataset('train').datasets.keys()}
 
         self.dataset_to_epoch_iter[dataset] = MyEpochBatchIterator(epoch_iter, sample_prop)
         return self.dataset_to_epoch_iter[dataset]
