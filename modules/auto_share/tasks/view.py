@@ -63,6 +63,9 @@ class ModelView:
         self.gradients = {lang_pair: {} for lang_pair in model.keys}
         self.split_all = os.environ.get('SPLIT_ALL', 'FALSE') == 'TRUE'
 
+    def reinitialize(self):
+        self.gradients = {lang_pair: {} for lang_pair in self.model.keys}
+
     def accum_gradient(self, lang_pair):
         cur_model = self.model.models[lang_pair]
         names = list(set(list(get_model_parameters(cur_model))))
@@ -103,6 +106,8 @@ class ModelView:
 
             if not self.split_all:
                 break
+        # 清空梯度
+        self.reinitialize()
 
     def split_module(self, module_to_split, split_lang_pairs, optimizer):
         # 1. 修改container的内容
