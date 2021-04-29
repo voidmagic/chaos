@@ -43,6 +43,9 @@ class MyEpochBatchIterator:
             for key, value in self.iterators.items()
         }
 
+    def load_state_dict(self, stat_dict):
+        pass
+
 
 class BatchIterator:
     def __init__(self, iterators, epoch_iter, sample_prop):
