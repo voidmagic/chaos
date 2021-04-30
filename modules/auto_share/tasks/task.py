@@ -85,6 +85,7 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
             data_buffer_size=self.args.data_buffer_size,
         ).next_epoch_itr(shuffle=False)
         for i, sample in enumerate(batch_iterator):
+            logger.info("Accumulate gradient {}/{}".format(i+1, len(batch_iterator)))
             if self.cuda:
                 sample = utils.move_to_cuda(sample)
             for lang_pair in self.lang_pairs:
