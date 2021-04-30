@@ -17,9 +17,10 @@ class Model(MultilingualTransformerModel):
     def forward(self, src_tokens, src_lengths, prev_output_tokens, **kwargs):
         pass
 
-    def __init__(self, encoders, decoders):
+    def __init__(self, encoders, decoders, share=False):
         super().__init__(encoders, decoders)
-        self.make_share_components()
+        if share:  # 在训练的时候，share=True，然后自动学习那些是不需要share的；在测试的时候，share=False，每个语言对独享一组参数！
+            self.make_share_components()
 
     def make_share_components(self):
         shared_model = self.models[self.keys[0]]
@@ -88,7 +89,7 @@ class Model(MultilingualTransformerModel):
         for lang_pair, src, tgt in zip(args.lang_pairs, src_langs, tgt_langs):
             encoders[lang_pair] = get_encoder()
             decoders[lang_pair] = get_decoder()
-        return cls(encoders, decoders)
+        return cls(encoders, decoders, share=task.training)
 
 
 @register_model_architecture("auto_share_multilingual", "auto_base")
