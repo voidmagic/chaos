@@ -198,6 +198,10 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
         self.dataset_to_epoch_iter[dataset] = MyEpochBatchIterator(epoch_iter, sample_prop)
         return self.dataset_to_epoch_iter[dataset]
 
+    def build_generator(self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None):
+        models = [models[0].models[self.lang_pairs[0]]]
+        return super(AutoShareTranslationTask, self).build_generator(models, args, seq_gen_cls, extra_gen_cls_kwargs)
+
 
 def get_trainer() -> Trainer:
     import gc
