@@ -92,6 +92,7 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
             self.view.auto_split()    # 切分参数
             self.view.reinitialize()  # 清空梯度
             trainer.reinitialize()    # 把所有参数加入优化器
+            logger.info("num. model params after: {}".format(sum(p.numel() for p in model.parameters())))
 
     def load_dataset(self, split, epoch=1, **kwargs):
         super(AutoShareTranslationTask, self).load_dataset(split, epoch)
