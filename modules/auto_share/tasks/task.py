@@ -24,11 +24,20 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
         self.src_dict = self.tgt_dict = list(dicts.values())[0]
         self.view = None
         self.cuda = torch.cuda.is_available() and not args.cpu
+
+        # 以下是自定义参数
         self.split_counter = LoopCounter(int(os.environ.get('SPLIT_EVERY', '5')))
         self.grad_valid = os.environ.get('GRAD_VALID', 'multi')
 
         self.sample_method = os.environ.get('SAMPLE_METHOD', 'uniform')
         self.sample_temperature = int(os.environ.get('TEMPERATURE', '5'))
+
+        self.split_all = os.environ.get('SPLIT_ALL', 'FALSE') == 'TRUE'
+        self.threshold = float(os.environ.get('THRESHOLD', '0.0'))
+        self.check_args()
+
+
+    def check_args(self):
         assert self.sample_method in ['uniform', 'temperature', 'proportional']
         if self.sample_method == 'proportional':
             self.sample_method = 'temperature'
@@ -36,14 +45,7 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
 
     def build_model(self, args):
         model = super(AutoShareTranslationTask, self).build_model(args)
-        self.view = ModelView(model)
-
-        # 加载训练好的模型
-        model_path = os.environ.get('MULTI_MODEL', None)
-        if model_path is not None:
-            logger.info('load pretrain states from {}'.format(model_path))
-            states = torch.load(model_path)['model']
-            model.load_state_dict(states)
+        self.view = ModelView(model, split_all=self.split_all, threshold=self.threshold)
         return model
 
     def begin_valid_epoch(self, epoch, model):
@@ -89,9 +91,8 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
 
         self.split_counter += 1
         if self.split_counter == 0:
-            self.view.auto_split()    # 切分参数
-            self.view.reinitialize()  # 清空梯度
-            trainer.reinitialize()    # 把所有参数加入优化器
+            self.view.auto_split()  # 切分参数
+            trainer.reinitialize()  # 把所有参数加入优化器
             logger.info("num. model params after: {}".format(sum(p.numel() for p in model.parameters())))
 
     def load_dataset(self, split, epoch=1, **kwargs):

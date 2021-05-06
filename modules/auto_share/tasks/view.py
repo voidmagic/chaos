@@ -53,20 +53,14 @@ def get_parent_module(model, name):
 
 
 class ModelView:
-    def __init__(self, model):
+    def __init__(self, model, split_all=False, threshold=0.0):
         self.model = model
         # 初始化的时候，为全共享模型
         names = list(set(list(get_model_parameters(model))))
-        self.container = {
-            n: model.keys for n in names
-        }
+        self.container = {n: model.keys for n in names}
+        self.split_all = split_all
+        self.threshold = threshold
         self.gradients = {lang_pair: {} for lang_pair in model.keys}
-        self.split_all = os.environ.get('SPLIT_ALL', 'FALSE') == 'TRUE'
-        self.threshold = float(os.environ.get('THRESHOLD', '0.0'))
-
-    def reinitialize(self):
-        # 清空梯度
-        self.gradients = {lang_pair: {} for lang_pair in self.model.keys}
 
     def accum_gradient(self, lang_pair):
         cur_model = self.model.models[lang_pair]
@@ -97,17 +91,19 @@ class ModelView:
 
         if len(sorted_divergences) == 0:
             logger.info('Skip split due to similarity > {}.'.format(self.threshold))
-            return
+        else:
+            for best_name, (best_lang_pairs, best_score) in sorted_divergences:
+                logger.info('Split shared parameters: {}'.format(best_name))
+                logger.info('This parameter is shared by {}'.format(','.join(best_lang_pairs[0] + best_lang_pairs[1])))
+                logger.info('After split: {}   {}'.format(','.join(best_lang_pairs[0]), ','.join(best_lang_pairs[1])))
+                logger.info('Cos similarity is {}'.format(-best_score))
+                self.split_module(best_name, best_lang_pairs, optimizer)
 
-        for best_name, (best_lang_pairs, best_score) in sorted_divergences:
-            logger.info('Split shared parameters: {}'.format(best_name))
-            logger.info('This parameter is shared by {}'.format(','.join(best_lang_pairs[0] + best_lang_pairs[1])))
-            logger.info('After split: {}   {}'.format(','.join(best_lang_pairs[0]), ','.join(best_lang_pairs[1])))
-            logger.info('Cos similarity is {}'.format(-best_score))
-            self.split_module(best_name, best_lang_pairs, optimizer)
+                if not self.split_all:
+                    break
 
-            if not self.split_all:
-                break
+        # 计算完了，清空梯度
+        self.gradients = {lang_pair: {} for lang_pair in self.model.keys}
 
     def split_module(self, module_to_split, split_lang_pairs, optimizer):
         # 1. 修改container的内容
