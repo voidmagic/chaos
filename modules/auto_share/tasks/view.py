@@ -62,8 +62,10 @@ class ModelView:
         }
         self.gradients = {lang_pair: {} for lang_pair in model.keys}
         self.split_all = os.environ.get('SPLIT_ALL', 'FALSE') == 'TRUE'
+        self.threshold = float(os.environ.get('THRESHOLD', '0.0'))
 
     def reinitialize(self):
+        # 清空梯度
         self.gradients = {lang_pair: {} for lang_pair in self.model.keys}
 
     def accum_gradient(self, lang_pair):
@@ -85,16 +87,16 @@ class ModelView:
             module_gradients = {lang_pair: self.gradients[lang_pair][short_name] for lang_pair in lang_pairs}
             divergences[name] = calculate_div(module_gradients)
 
-        count = len([a for a in divergences.values() if a[1] > 0])
-        logger.info('Cos similarity < 0: {} / {}'.format(count, len(divergences.items())))
+        count = len([a for a in divergences.values() if a[1] > self.threshold])
+        logger.info('Cos similarity < {}: {} / {}'.format(-self.threshold, count, len(divergences.items())))
 
         # 按距离排序，从大到小，[-1, 1]，-1表示距离最小。
         sorted_divergences = sorted(divergences.items(), key=lambda item: -item[1][1])
         # 所有距离>0的module
-        sorted_divergences = [d for d in sorted_divergences if d[1][1] > 0]
+        sorted_divergences = [d for d in sorted_divergences if d[1][1] > self.threshold]
 
         if len(sorted_divergences) == 0:
-            logger.info('Skip split due to similarity > 0.')
+            logger.info('Skip split due to similarity > {}.'.format(self.threshold))
             return
 
         for best_name, (best_lang_pairs, best_score) in sorted_divergences:
@@ -106,8 +108,6 @@ class ModelView:
 
             if not self.split_all:
                 break
-        # 清空梯度
-        self.reinitialize()
 
     def split_module(self, module_to_split, split_lang_pairs, optimizer):
         # 1. 修改container的内容

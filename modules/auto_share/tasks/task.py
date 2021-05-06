@@ -24,8 +24,7 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
         self.src_dict = self.tgt_dict = list(dicts.values())[0]
         self.view = None
         self.cuda = torch.cuda.is_available() and not args.cpu
-        self.start_split = int(os.environ.get('SPLIT_START', '10'))
-        self.split_every = int(os.environ.get('SPLIT_EVERY', '1'))
+        self.split_counter = LoopCounter(int(os.environ.get('SPLIT_EVERY', '5')))
         self.grad_valid = os.environ.get('GRAD_VALID', 'multi')
 
         self.sample_method = os.environ.get('SAMPLE_METHOD', 'uniform')
@@ -45,22 +44,14 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
             logger.info('load pretrain states from {}'.format(model_path))
             states = torch.load(model_path)['model']
             model.load_state_dict(states)
-            self.start_split = 0
         return model
 
-    def begin_epoch(self, epoch, model):
-        if epoch < self.start_split or self.view is None:
-            return
-        if epoch % self.split_every != 1 and self.split_every != 1:
-            # 1. 每split_every个epoch运行一次，否则返回（!=1因为epoch从1开始）
-            # 2. 如果split_every为1，每次都运行
-            return
-
+    def begin_valid_epoch(self, epoch, model):
         trainer = get_trainer()
         criterion = trainer.criterion
         optimizer = trainer.optimizer
 
-        logger.info("Start parameter sharing")
+        logger.info("Start accumulating gradient")
         # requires: criterion optimizer
         model.train()
 
@@ -84,19 +75,23 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
             num_workers=self.args.num_workers,
             data_buffer_size=self.args.data_buffer_size,
         ).next_epoch_itr(shuffle=False)
+
         for i, sample in enumerate(batch_iterator):
-            logger.info("Accumulate gradient {}/{}".format(i+1, len(batch_iterator)))
             if self.cuda:
                 sample = utils.move_to_cuda(sample)
             for lang_pair in self.lang_pairs:
                 loss, _, _ = criterion(model.models[lang_pair], sample[lang_pair])
                 # 缩放一下，避免出现NAN
-                loss /= len(batch_iterator)
+                loss = loss / len(batch_iterator) / self.split_counter
                 optimizer.backward(loss)
                 self.view.accum_gradient(lang_pair)
                 model.zero_grad()
-        self.view.auto_split()
-        trainer.reinitialize()
+
+        self.split_counter += 1
+        if self.split_counter == 0:
+            self.view.auto_split()    # 切分参数
+            self.view.reinitialize()  # 清空梯度
+            trainer.reinitialize()    # 把所有参数加入优化器
 
     def load_dataset(self, split, epoch=1, **kwargs):
         super(AutoShareTranslationTask, self).load_dataset(split, epoch)
@@ -208,3 +203,19 @@ def get_trainer() -> Trainer:
     for obj in gc.get_objects():
         if isinstance(obj, Trainer):
             return obj
+
+
+class LoopCounter:
+    def __init__(self, n):
+        self.n = n
+        self.current = 0
+
+    def __add__(self, other):
+        self.current = (self.current + other) % self.n
+        return self
+
+    def __eq__(self, other):
+        return self.current == other
+
+    def __rtruediv__(self, other):
+        return other / self.n
