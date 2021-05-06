@@ -1,4 +1,3 @@
-import os
 import copy
 import logging
 
@@ -6,71 +5,42 @@ import torch
 import torch.nn as nn
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
+
 logger = logging.getLogger(__name__)
 
 
-def name2module(model, name):
-    name = name.split('.')
-    for part in name:
-        if hasattr(model, part):
-            model = getattr(model, part)
-        elif isinstance(model, nn.ModuleDict):
-            model = model[part]
-        elif isinstance(model, nn.ModuleList):
-            model = model[int(part)]
-        else:
-            raise NotImplementedError
-
-        if isinstance(model, nn.Linear) or isinstance(model, nn.LayerNorm):
-            break
-    return model
+def name2module(module, name):
+    for part in name.split('.'):
+        module = getattr(module, part)
+        yield module
 
 
-def get_model_parameters(model: nn.Module):
-    # 获取初始模型中所有的模块
-    for name, p in model.named_parameters():
-        if 'layers' in name:
-            yield name.rstrip('.bias').rstrip('.weight')
-
-
-def get_parent_module(model, name):
-    name = name.split('.')
-    parent = model
-    for part in name:
-        parent = model
-        if hasattr(model, part):
-            model = getattr(model, part)
-        elif isinstance(model, nn.ModuleDict):
-            model = model[part]
-        elif isinstance(model, nn.ModuleList):
-            model = model[int(part)]
-        else:
-            raise NotImplementedError
-
-        if isinstance(model, nn.Linear) or isinstance(model, nn.LayerNorm):
-            break
-    return parent
+def get_module_names(model: nn.Module):
+    # 获取初始模型中所有的模块，如所有Linear的名字（path）
+    return list(set([name.rstrip('.bias').rstrip('.weight')
+                     for name in dict(model.named_parameters()).keys()
+                     if 'layers' in name]))
 
 
 class ModelView:
     def __init__(self, model, split_all=False, threshold=0.0):
         self.model = model
         # 初始化的时候，为全共享模型
-        names = list(set(list(get_model_parameters(model))))
-        self.container = {n: model.keys for n in names}
+        self.container = {name: model.keys for name in get_module_names(model)}
         self.split_all = split_all
         self.threshold = threshold
         self.gradients = {lang_pair: {} for lang_pair in model.keys}
+        self.device = list(model.parameters())[0].device
 
     def accum_gradient(self, lang_pair):
         cur_model = self.model.models[lang_pair]
-        names = list(set(list(get_model_parameters(cur_model))))
-        for name in names:
-            module = name2module(cur_model, name)
+        for name in get_module_names(cur_model):
+            module_tree = list(name2module(cur_model, name))
+            module = module_tree[-1]
             grad = torch.cat([module.weight.grad.view(-1), module.bias.grad.view(-1)]).data.cpu()
             self.gradients[lang_pair][name] = grad + self.gradients[lang_pair].get(name, 0)
 
-    def auto_split(self, optimizer=None):
+    def auto_split(self):
         logger.info('Detect split parameters by grad')
         # 根据梯度，计算每个模块的散度
         divergences = {}
@@ -97,7 +67,7 @@ class ModelView:
                 logger.info('This parameter is shared by {}'.format(','.join(best_lang_pairs[0] + best_lang_pairs[1])))
                 logger.info('After split: {}   {}'.format(','.join(best_lang_pairs[0]), ','.join(best_lang_pairs[1])))
                 logger.info('Cos similarity is {}'.format(-best_score))
-                self.split_module(best_name, best_lang_pairs, optimizer)
+                self.split_module(best_name, best_lang_pairs)
 
                 if not self.split_all:
                     break
@@ -105,7 +75,7 @@ class ModelView:
         # 计算完了，清空梯度
         self.gradients = {lang_pair: {} for lang_pair in self.model.keys}
 
-    def split_module(self, module_to_split, split_lang_pairs, optimizer):
+    def split_module(self, module_to_split, split_lang_pairs):
         # 1. 修改container的内容
         # best_name: models.$lang_pair.*
         # best_lang_pairs：两组语言
@@ -124,21 +94,17 @@ class ModelView:
 
         # 2. 新建参数
         lang_pairs = self.container[module_to_split]
-        parent_module = get_parent_module(self.model, module_to_split)
-        shared_module = getattr(parent_module, module_to_split.split(".")[-1])
-        device = list(shared_module.parameters())[0].device
-        new_module = copy.deepcopy(shared_module).to(device)
+        module_tree = list(name2module(self.model, module_to_split))
+        parent_module, shared_module = module_tree[-2], module_tree[-1]
+        new_module = copy.deepcopy(shared_module).to(self.device)
         setattr(parent_module, module_to_split.split(".")[-1], new_module)
 
         # 3. 给其他语言也共享了
         for lang_pair in lang_pairs[1:]:
             module_name = ".".join([module_to_split.split(".")[0], lang_pair] + module_to_split.split(".")[2:])
-            parent_module = get_parent_module(self.model, module_name)
+            module_tree = list(name2module(self.model, module_to_split))
+            parent_module = module_tree[-2]
             setattr(parent_module, module_name.split(".")[-1], new_module)
-
-        # 4. 添加到优化器中
-        if optimizer is not None:
-            optimizer.optimizer.add_param_group({"params": new_module.parameters()})
 
 
 def calculate_div(module_gradients):
