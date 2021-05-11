@@ -54,9 +54,6 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
         optimizer = trainer.optimizer
 
         logger.info("Start accumulating gradient")
-        # requires: criterion optimizer
-        model.train()
-
         if self.grad_valid in self.datasets:
             dataset_for_split = self.dataset(self.grad_valid)
         else:
@@ -78,6 +75,7 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
             data_buffer_size=self.args.data_buffer_size,
         ).next_epoch_itr(shuffle=False)
 
+        model.eval()
         for i, sample in enumerate(batch_iterator):
             if self.cuda:
                 sample = utils.move_to_cuda(sample)
@@ -88,6 +86,7 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
                 optimizer.backward(loss)
                 self.view.accum_gradient(lang_pair)
                 model.zero_grad()
+        model.train()
 
         self.split_counter += 1
         if self.split_counter == 0:
