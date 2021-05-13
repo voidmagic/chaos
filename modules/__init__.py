@@ -1,5 +1,4 @@
 from . import google_mnmt
-from . import shallow_decoder
 from . import gptmt
 from . import mtpt
 from . import translation
