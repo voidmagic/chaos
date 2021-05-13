@@ -6,8 +6,8 @@ from fairseq.data import data_utils, LanguagePairDataset
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask
 
-from modules.gptmt2.models.share_transformer import ShareEncoderDecoderTransformerModel
-from modules.gptmt2.tasks.dataset import Dataset, FakeLanguagePairDataset
+from modules.gptmt.models.share_transformer import ShareEncoderDecoderTransformerModel
+from modules.gptmt.tasks import Dataset, FakeLanguagePairDataset
 
 
 logger = logging.getLogger(__name__)

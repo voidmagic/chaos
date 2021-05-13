@@ -1,14 +1,11 @@
 import logging
 import os
 
-import torch
 from fairseq.data import data_utils, LanguagePairDataset, indexed_dataset, PrependTokenDataset, ConcatDataset
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask
 
-from modules.gptmt2.models.share_transformer import ShareEncoderDecoderTransformerModel
-from modules.gptmt2.tasks.dataset import Dataset, FakeLanguagePairDataset
-
+from modules.gptmt.tasks import Dataset
 
 logger = logging.getLogger(__name__)
 
