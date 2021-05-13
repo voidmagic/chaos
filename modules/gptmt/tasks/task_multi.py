@@ -5,7 +5,7 @@ from fairseq.data import data_utils, LanguagePairDataset, indexed_dataset, Prepe
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask
 
-from modules.gptmt.tasks import Dataset
+from .dataset import Dataset
 
 logger = logging.getLogger(__name__)
 
