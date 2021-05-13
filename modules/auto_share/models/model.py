@@ -17,16 +17,39 @@ class Model(MultilingualTransformerModel):
     def forward(self, src_tokens, src_lengths, prev_output_tokens, **kwargs):
         pass
 
-    def __init__(self, encoders, decoders, share=False):
+    def __init__(self, encoders, decoders, share=False, granularity=None):
         super().__init__(encoders, decoders)
-        if share:  # 在训练的时候，share=True，然后自动学习那些是不需要share的；在测试的时候，share=False，每个语言对独享一组参数！
-            self.make_share_components()
+        self.make_share_components(share, granularity)
 
-    def make_share_components(self):
+    def make_share_components(self, share, granularity):
+        # 在训练的时候，share=True，然后自动学习那些是不需要share的；在测试的时候，share=False，每个语言对独享一组参数！
+        if not share:
+            return
+        if granularity == 'parameter':
+            self.make_share_components_params()
+        elif granularity == 'module':
+            self.make_share_components_modules()
+        elif granularity == 'layer':
+            self.make_share_components_layers()
+        else:
+            raise NotImplementedError(granularity)
+
+    def make_share_components_params(self):
+        shared_model = self.models[self.keys[0]]
+        for name, parameter in shared_model.named_parameters():
+            if 'layers' not in name:
+                continue
+
+            for key in self.keys[1:]:
+                module = self.models[key]
+                for module_name in name.split('.')[:-1]:
+                    module = getattr(module, module_name)
+                setattr(module, name.split('.')[-1], parameter)
+
+    def make_share_components_modules(self):
         shared_model = self.models[self.keys[0]]
         for key in self.keys[1:]:
             # share encoder
-            self.models[key].encoder.embed_positions = shared_model.encoder.embed_positions
             for layer_idx in range(len(shared_model.encoder.layers)):
                 self.models[key].encoder.layers[layer_idx].self_attn.k_proj = shared_model.encoder.layers[layer_idx].self_attn.k_proj
                 self.models[key].encoder.layers[layer_idx].self_attn.v_proj = shared_model.encoder.layers[layer_idx].self_attn.v_proj
@@ -38,7 +61,6 @@ class Model(MultilingualTransformerModel):
                 self.models[key].encoder.layers[layer_idx].final_layer_norm = shared_model.encoder.layers[layer_idx].final_layer_norm
 
             # share decoder
-            self.models[key].decoder.embed_positions = shared_model.decoder.embed_positions
             for layer_idx in range(len(shared_model.decoder.layers)):
                 self.models[key].decoder.layers[layer_idx].self_attn.k_proj = shared_model.decoder.layers[layer_idx].self_attn.k_proj
                 self.models[key].decoder.layers[layer_idx].self_attn.v_proj = shared_model.decoder.layers[layer_idx].self_attn.v_proj
@@ -53,6 +75,15 @@ class Model(MultilingualTransformerModel):
                 self.models[key].decoder.layers[layer_idx].self_attn_layer_norm = shared_model.decoder.layers[layer_idx].self_attn_layer_norm
                 self.models[key].decoder.layers[layer_idx].encoder_attn_layer_norm = shared_model.decoder.layers[layer_idx].encoder_attn_layer_norm
                 self.models[key].decoder.layers[layer_idx].final_layer_norm = shared_model.decoder.layers[layer_idx].final_layer_norm
+
+    def make_share_components_layers(self):
+        shared_model = self.models[self.keys[0]]
+        for key in self.keys[1:]:
+            for layer_idx in range(len(shared_model.encoder.layers)):
+                self.models[key].encoder.layers[layer_idx] = shared_model.encoder.layers[layer_idx]
+            for layer_idx in range(len(shared_model.decoder.layers)):
+                self.models[key].decoder.layers[layer_idx] = shared_model.decoder.layers[layer_idx]
+
 
     @classmethod
     def build_model(cls, args, task):
@@ -89,7 +120,7 @@ class Model(MultilingualTransformerModel):
         for lang_pair, src, tgt in zip(args.lang_pairs, src_langs, tgt_langs):
             encoders[lang_pair] = get_encoder()
             decoders[lang_pair] = get_decoder()
-        return cls(encoders, decoders, share=task.training)
+        return cls(encoders, decoders, share=task.training, granularity=task.granularity)
 
 
 @register_model_architecture("auto_share_multilingual", "auto_base")

@@ -34,8 +34,10 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
 
         self.split_all = os.environ.get('SPLIT_ALL', 'FALSE') == 'TRUE'
         self.threshold = float(os.environ.get('THRESHOLD', '0.0'))
-        self.check_args()
 
+        # 可以是parameter，module，layer
+        self.granularity = os.environ.get('GRANULARITY', 'parameter')
+        self.check_args()
 
     def check_args(self):
         assert self.sample_method in ['uniform', 'temperature', 'proportional']
@@ -45,7 +47,7 @@ class AutoShareTranslationTask(MultilingualTranslationTask):
 
     def build_model(self, args):
         model = super(AutoShareTranslationTask, self).build_model(args)
-        self.view = ModelView(model, split_all=self.split_all, threshold=self.threshold)
+        self.view = ModelView(model, split_all=self.split_all, threshold=self.threshold, granularity=self.granularity)
         return model
 
     def begin_valid_epoch(self, epoch, model):

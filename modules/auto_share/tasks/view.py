@@ -1,43 +1,67 @@
-import copy
 import logging
-
+import copy
 import torch
 import torch.nn as nn
 import numpy as np
+from collections import OrderedDict
 from sklearn.metrics.pairwise import cosine_similarity
 
 logger = logging.getLogger(__name__)
 
 
 def name2module(module, name):
-    for part in name.split('.'):
-        module = getattr(module, part)
-        yield module
-
-
-def get_module_names(model: nn.Module):
-    # 获取初始模型中所有的模块，如所有Linear的名字（path）
-    return list(set([name.rstrip('.bias').rstrip('.weight')
-                     for name in dict(model.named_parameters()).keys()
-                     if 'layers' in name]))
+    def _generator(_module):
+        for part in name.split('.'):
+            _module = getattr(_module, part)
+            yield _module
+    return [module] + list(_generator(module))
 
 
 class ModelView:
-    def __init__(self, model, split_all=False, threshold=0.0):
+    def __init__(self, model, split_all=False, threshold=0.0, granularity='parameter'):
         self.model = model
-        # 初始化的时候，为全共享模型
-        self.container = {name: model.keys for name in get_module_names(model)}
         self.split_all = split_all
         self.threshold = threshold
+        self.granularity = granularity
+
+        # 初始化的时候，为全共享模型
+        self.container = {name: model.keys for name in self.get_module_names(model)}
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.gradients = {lang_pair: {} for lang_pair in model.keys}
-        self.device = list(model.parameters())[0].device
+
+    def get_module_names(self, model: nn.Module):
+        # 获取初始模型中所有的参数path
+        all_param_names = [name for name in dict(model.named_parameters()).keys() if 'layers' in name]
+        if self.granularity == 'parameter':
+            # 所有参数的path
+            pass
+        elif self.granularity == 'module':
+            # 精确到一个小模块，如Linear和LayerNorm，即包含weight和bias(可选)的名字
+            all_param_names = [param.rstrip('.weight') for param in all_param_names if 'weight' in param]
+        elif self.granularity == 'layer':
+            def _get_layer_name(_param_name):
+                _param_name = _param_name.split('.')
+                _layer_index = _param_name.index('layers')  # encoder.layers.0, _layer_index=1, 取[:3]=[0,1,2]
+                return '.'.join(_param_name[:_layer_index+2])
+            all_param_names = [_get_layer_name(param) for param in all_param_names]
+            all_param_names = list(OrderedDict.fromkeys(all_param_names))
+        else:
+            raise NotImplementedError('granularity error')
+        return all_param_names
+
+    def extract_gradient_from_module(self, module):
+        if self.granularity == 'parameter':  # 拆分的是参数层级的
+            assert torch.is_tensor(module)
+            return module.grad.view(-1).data.cpu()
+        else:
+            assert isinstance(module, nn.Module), module
+            return torch.cat([p.grad.view(-1) for p in module.parameters()]).data.cpu()
 
     def accum_gradient(self, lang_pair):
         cur_model = self.model.models[lang_pair]
-        for name in get_module_names(cur_model):
-            module_tree = list(name2module(cur_model, name))
-            module = module_tree[-1]
-            grad = torch.cat([module.weight.grad.view(-1), module.bias.grad.view(-1)]).data.cpu()
+        for name in self.get_module_names(cur_model):
+            module_tree = name2module(cur_model, name)
+            grad = self.extract_gradient_from_module(module_tree[-1])
             self.gradients[lang_pair][name] = grad + self.gradients[lang_pair].get(name, 0)
 
     def auto_split(self):
@@ -51,17 +75,13 @@ class ModelView:
             module_gradients = {lang_pair: self.gradients[lang_pair][short_name] for lang_pair in lang_pairs}
             divergences[name] = calculate_div(module_gradients)
 
-        count = len([a for a in divergences.values() if a[1] > self.threshold])
-        logger.info('Cos similarity < {}: {} / {}'.format(-self.threshold, count, len(divergences.items())))
-
-        # 按距离排序，从大到小，[-1, 1]，-1表示距离最小。
-        sorted_divergences = sorted(divergences.items(), key=lambda item: -item[1][1])
-        # 所有距离>0的module
-        sorted_divergences = [d for d in sorted_divergences if d[1][1] > self.threshold]
+        # 按距离排序，从大到小，[-1, 1]，-1表示距离最小，所有距离>T的module
+        sorted_divergences = [d for d in sorted(divergences.items(), key=lambda item: -item[1][1]) if d[1][1] > self.threshold]
 
         if len(sorted_divergences) == 0:
             logger.info('Skip split due to similarity > {}.'.format(self.threshold))
         else:
+            logger.info('Cos similarity < {}: {} / {}'.format(-self.threshold, len(sorted_divergences), len(divergences.items())))
             for best_name, (best_lang_pairs, best_score) in sorted_divergences:
                 logger.info('Split shared parameters: {}'.format(best_name))
                 logger.info('This parameter is shared by {}'.format(','.join(best_lang_pairs[0] + best_lang_pairs[1])))
@@ -94,17 +114,15 @@ class ModelView:
 
         # 2. 新建参数
         lang_pairs = self.container[module_to_split]
-        module_tree = list(name2module(self.model, module_to_split))
-        parent_module, shared_module = module_tree[-2], module_tree[-1]
-        new_module = copy.deepcopy(shared_module).to(self.device)
-        setattr(parent_module, module_to_split.split(".")[-1], new_module)
+        module_tree = name2module(self.model, module_to_split)
+        new_module = copy.deepcopy(module_tree[-1]).to(self.device)
+        setattr(module_tree[-2], module_to_split.split(".")[-1], new_module)
 
         # 3. 给其他语言也共享了
         for lang_pair in lang_pairs[1:]:
             module_name = ".".join([module_to_split.split(".")[0], lang_pair] + module_to_split.split(".")[2:])
-            module_tree = list(name2module(self.model, module_to_split))
-            parent_module = module_tree[-2]
-            setattr(parent_module, module_name.split(".")[-1], new_module)
+            module_tree = name2module(self.model, module_to_split)
+            setattr(module_tree[-2], module_name.split(".")[-1], new_module)
 
 
 def calculate_div(module_gradients):
