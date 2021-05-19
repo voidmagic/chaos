@@ -24,6 +24,8 @@ class MultilingualSampledDataset(RoundRobinZipDatasets):
         return key, self.datasets[key][index]
 
     def collater(self, samples):
+        if len(samples) == 0:
+            return None
         assert len(set([sample[0] for sample in samples])) == 1, "All samples in a batch must be in the same language."
         current_key = samples[0][0]
         samples = [sample[1] for sample in samples]
