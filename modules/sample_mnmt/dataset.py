@@ -26,12 +26,14 @@ class MultilingualSampledDataset(RoundRobinZipDatasets):
     def collater(self, samples):
         if len(samples) == 0:
             return None
-        assert len(set([sample[0] for sample in samples])) == 1, "All samples in a batch must be in the same language."
-        current_key = samples[0][0]
-        samples = [sample[1] for sample in samples]
-        batch_dict = OrderedDict([
-            (key, dataset.collater(samples) if key == current_key else None) for key, dataset in self.datasets.items()
-        ])
+        samples_dict = {
+            dataset_key: [sample for sample_key, sample in samples if sample_key == dataset_key]
+            for dataset_key in self.datasets.keys()
+        }
+        batch_dict = {
+            key: dataset.collater(samples_dict[key]) if samples_dict[key] else None
+            for key, dataset in self.datasets.items()
+        }
         return batch_dict if self.eval_key is None else batch_dict[self.eval_key]
 
     def ordered_indices(self):
