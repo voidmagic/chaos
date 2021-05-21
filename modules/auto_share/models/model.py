@@ -96,8 +96,8 @@ class Model(MultilingualTransformerModel):
         if not hasattr(args, "max_target_positions"):
             args.max_target_positions = 1024
 
-        src_langs = [lang_pair.split('-')[0] for lang_pair in args.lang_pairs]
-        tgt_langs = [lang_pair.split('-')[1] for lang_pair in args.lang_pairs]
+        src_langs = [lang_pair.split('-')[0] for lang_pair in task.model_lang_pairs]
+        tgt_langs = [lang_pair.split('-')[1] for lang_pair in task.model_lang_pairs]
 
         def build_embedding(dictionary, embed_dim):
             num_embeddings = len(dictionary)
@@ -107,20 +107,24 @@ class Model(MultilingualTransformerModel):
 
         if args.encoder_embed_dim != args.decoder_embed_dim:
             raise ValueError("--share-all-embeddings requires --encoder-embed-dim to match --decoder-embed-dim")
-        shared_embed_tokens = build_embedding(task.src_dict, args.encoder_embed_dim)
+
+        shared_dict = next(iter(task.dicts.values()))
+        shared_embed_tokens = build_embedding(shared_dict, args.encoder_embed_dim)
         args.share_decoder_input_output_embed = True
 
         def get_encoder():
-            return cls._get_module_class(True, args, task.src_dict, shared_embed_tokens, src_langs)
+            return cls._get_module_class(True, args, shared_dict, shared_embed_tokens, src_langs)
 
         def get_decoder():
-            return cls._get_module_class(False, args, task.src_dict, shared_embed_tokens, tgt_langs)
+            return cls._get_module_class(False, args, shared_dict, shared_embed_tokens, tgt_langs)
 
         encoders, decoders = OrderedDict(), OrderedDict()
-        for lang_pair, src, tgt in zip(args.lang_pairs, src_langs, tgt_langs):
+        for lang_pair, src, tgt in zip(task.model_lang_pairs, src_langs, tgt_langs):
             encoders[lang_pair] = get_encoder()
             decoders[lang_pair] = get_decoder()
-        return cls(encoders, decoders, share=task.training, granularity=task.granularity)
+
+        return cls(encoders, decoders, share=task.training,
+                   granularity=task.granularity if hasattr(task, 'granularity') else 'layer')
 
 
 @register_model_architecture("auto_share_multilingual", "auto_base")
