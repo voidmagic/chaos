@@ -1,4 +1,6 @@
 import logging
+import os
+import time
 
 import torch
 from fairseq import utils
@@ -16,6 +18,7 @@ class AutoShareTranslationTask(SampledMultilingualTask):
     @staticmethod
     def add_args(parser):
         SampledMultilingualTask.add_args(parser)
+        parser.add_argument('--split-only-record', default='False', type=str, metavar='BOOL')
         parser.add_argument('--split-interval', default=5, type=int)
         parser.add_argument('--split-subset', default='multi', type=str)
         parser.add_argument('--split-all', default='True', type=str, metavar='BOOL')
@@ -25,9 +28,10 @@ class AutoShareTranslationTask(SampledMultilingualTask):
 
     def __init__(self, args, dicts, training):
         super().__init__(args, dicts, training)
-        self.view = None
+        self.view: ModelView = None
         self.cuda = torch.cuda.is_available() and not args.cpu
         self.split_counter, self.split_interval = 0, args.split_interval
+        self.split_only_record = utils.eval_bool(args.split_only_record)
         self.load_dataset(args.split_subset)
 
     def build_model(self, args):
@@ -60,6 +64,8 @@ class AutoShareTranslationTask(SampledMultilingualTask):
             if self.cuda:
                 sample = utils.move_to_cuda(sample)
             for lang_pair in self.lang_pairs:
+                if sample.get(lang_pair, None) is None:
+                    continue
                 loss, _, _ = criterion(model.models[lang_pair], sample[lang_pair])
                 # 缩放一下，避免出现NAN
                 loss = loss / len(batch_iterator) / self.split_interval
@@ -70,9 +76,14 @@ class AutoShareTranslationTask(SampledMultilingualTask):
 
         self.split_counter += 1
         if self.split_counter % self.split_interval == 0:
-            self.view.auto_split()  # 切分参数
-            trainer.reinitialize()  # 把所有参数加入优化器
-            logger.info("num. model params after: {}".format(sum(p.numel() for p in model.parameters())))
+            if self.split_only_record:
+                torch.save(self.view.gradients, os.path.join(self.args.save_dir, "{}.pt".format(int(time.time()))))
+            else:
+                self.view.auto_split()      # 切分参数
+                trainer.reinitialize()      # 把所有参数加入优化器
+                logger.info("num. model params after: {}".format(sum(p.numel() for p in model.parameters())))
+
+            self.view.clear_gradient()  # 清空梯度
 
 
 def get_trainer() -> Trainer:

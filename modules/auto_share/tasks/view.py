@@ -30,6 +30,9 @@ class ModelView:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.gradients = {lang_pair: {} for lang_pair in model.keys}
 
+    def clear_gradient(self):
+        self.gradients = {lang_pair: {} for lang_pair in self.model.keys}
+
     def get_module_names(self, model: nn.Module):
         # 获取初始模型中所有的参数path
         all_param_names = [name for name in dict(model.named_parameters()).keys() if 'layers' in name]
@@ -92,9 +95,6 @@ class ModelView:
 
                 if not self.split_all:
                     break
-
-        # 计算完了，清空梯度
-        self.gradients = {lang_pair: {} for lang_pair in self.model.keys}
 
     def split_module(self, module_to_split, split_lang_pairs):
         # 1. 修改container的内容
