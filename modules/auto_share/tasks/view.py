@@ -2,6 +2,7 @@ import logging
 import copy
 import torch
 import torch.nn as nn
+from fairseq import utils
 import numpy as np
 from collections import OrderedDict
 from sklearn.metrics.pairwise import cosine_similarity
@@ -18,11 +19,11 @@ def name2module(module, name):
 
 
 class ModelView:
-    def __init__(self, model, split_all=False, threshold=0.0, granularity='parameter'):
+    def __init__(self, model, args):
         self.model = model
-        self.split_all = split_all
-        self.threshold = threshold
-        self.granularity = granularity
+        self.split_all = utils.eval_bool(args.split_all)
+        self.threshold = args.split_threshold
+        self.granularity = args.split_granularity
 
         # 初始化的时候，为全共享模型
         self.container = {name: model.keys for name in self.get_module_names(model)}

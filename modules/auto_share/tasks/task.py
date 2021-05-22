@@ -1,5 +1,4 @@
 import logging
-import os
 
 import torch
 from fairseq import utils
@@ -13,24 +12,27 @@ logger = logging.getLogger(__name__)
 
 @register_task('auto_share')
 class AutoShareTranslationTask(SampledMultilingualTask):
+
+    @staticmethod
+    def add_args(parser):
+        SampledMultilingualTask.add_args(parser)
+        parser.add_argument('--split-interval', default=5, type=int)
+        parser.add_argument('--split-subset', default='multi', type=str)
+        parser.add_argument('--split-all', default='True', type=str, metavar='BOOL')
+        parser.add_argument('--split-threshold', default=0.0, type=float)
+        parser.add_argument('--split-granularity', default='parameter', choices=['parameter', 'module', 'layer'])
+
+
     def __init__(self, args, dicts, training):
         super().__init__(args, dicts, training)
         self.view = None
         self.cuda = torch.cuda.is_available() and not args.cpu
-
-        # 以下是自定义参数
-        self.split_counter = LoopCounter(int(os.environ.get('SPLIT_EVERY', '5')))
-        self.grad_valid = os.environ.get('GRAD_VALID', 'multi')
-
-        self.split_all = os.environ.get('SPLIT_ALL', 'FALSE') == 'TRUE'
-        self.threshold = float(os.environ.get('THRESHOLD', '0.0'))
-
-        # 可以是parameter，module，layer
-        self.granularity = os.environ.get('GRANULARITY', 'parameter')
+        self.split_counter, self.split_interval = 0, args.split_interval
+        self.load_dataset(args.split_subset)
 
     def build_model(self, args):
         model = super(AutoShareTranslationTask, self).build_model(args)
-        self.view = ModelView(model, split_all=self.split_all, threshold=self.threshold, granularity=self.granularity)
+        self.view = ModelView(model, args=args)
         return model
 
     def begin_valid_epoch(self, epoch, model):
@@ -39,14 +41,7 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         optimizer = trainer.optimizer
 
         logger.info("Start accumulating gradient")
-        if self.grad_valid in self.datasets:
-            dataset_for_split = self.dataset(self.grad_valid)
-        else:
-            try:
-                self.load_dataset(self.grad_valid)
-                dataset_for_split = self.dataset(self.grad_valid)
-            except FileNotFoundError:
-                dataset_for_split = self.dataset('valid')
+        dataset_for_split = self.dataset(self.args.split_subset)
 
         batch_iterator = self.get_batch_iterator(
             dataset=dataset_for_split,
@@ -67,14 +62,14 @@ class AutoShareTranslationTask(SampledMultilingualTask):
             for lang_pair in self.lang_pairs:
                 loss, _, _ = criterion(model.models[lang_pair], sample[lang_pair])
                 # 缩放一下，避免出现NAN
-                loss = loss / len(batch_iterator) / self.split_counter
+                loss = loss / len(batch_iterator) / self.split_interval
                 optimizer.backward(loss)
                 self.view.accum_gradient(lang_pair)
                 model.zero_grad()
         model.train()
 
         self.split_counter += 1
-        if self.split_counter == 0:
+        if self.split_counter % self.split_interval == 0:
             self.view.auto_split()  # 切分参数
             trainer.reinitialize()  # 把所有参数加入优化器
             logger.info("num. model params after: {}".format(sum(p.numel() for p in model.parameters())))
@@ -85,19 +80,3 @@ def get_trainer() -> Trainer:
     for obj in gc.get_objects():
         if isinstance(obj, Trainer):
             return obj
-
-
-class LoopCounter:
-    def __init__(self, n):
-        self.n = n
-        self.current = 0
-
-    def __add__(self, other):
-        self.current = (self.current + other) % self.n
-        return self
-
-    def __eq__(self, other):
-        return self.current == other
-
-    def __rtruediv__(self, other):
-        return other / self.n
