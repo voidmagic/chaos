@@ -13,10 +13,7 @@ class SampledMultilingualTask(MultilingualTranslationTask):
     @staticmethod
     def add_args(parser):
         MultilingualTranslationTask.add_args(parser)
-        parser.add_argument(
-            '--sample-method',
-            default='proportional',
-            choices=['temperature', 'proportional', 'uniform'])
+        parser.add_argument('--sample-method', default='proportional', choices=['temperature', 'proportional', 'uniform'])
         parser.add_argument('--sample-temperature', default=5, type=int)
 
     def load_dataset(self, split, epoch=1, **kwargs):
