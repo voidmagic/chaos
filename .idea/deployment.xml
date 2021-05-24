@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="qwang@57:22 agent">
+  <component name="PublishConfigData" autoUpload="Always" serverName="qwang@35:22 agent">
     <serverData>
       <paths name="54">
         <serverdata>
@@ -30,6 +30,13 @@
           <excludedPaths>
             <excludedPath local="true" path="$PROJECT_DIR$/data" />
           </excludedPaths>
+        </serverdata>
+      </paths>
+      <paths name="qwang@35:22 agent">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/tmp/pycharm_project_63" local="$PROJECT_DIR$" />
+          </mappings>
         </serverdata>
       </paths>
       <paths name="qwang@57:22 agent">
