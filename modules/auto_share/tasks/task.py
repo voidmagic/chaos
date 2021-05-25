@@ -42,7 +42,6 @@ class AutoShareTranslationTask(SampledMultilingualTask):
     def begin_valid_epoch(self, epoch, model):
         trainer = get_trainer()
         criterion = trainer.criterion
-        optimizer = trainer.optimizer
 
         logger.info("Start accumulating gradient")
         dataset_for_split = self.dataset(self.args.split_subset)
@@ -69,7 +68,7 @@ class AutoShareTranslationTask(SampledMultilingualTask):
                 loss, _, _ = criterion(model.models[lang_pair], sample[lang_pair])
                 # 缩放一下，避免出现NAN
                 loss = loss / len(batch_iterator) / self.split_interval
-                optimizer.backward(loss)
+                loss.backward()
                 self.view.accum_gradient(lang_pair)
                 model.zero_grad()
         model.train()
