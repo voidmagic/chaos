@@ -6,6 +6,7 @@ import torch
 from fairseq import utils
 from fairseq.tasks import register_task
 from fairseq.trainer import Trainer
+from fairseq.criterions import cross_entropy
 from modules.sample_mnmt.task import SampledMultilingualTask
 from modules.auto_share.tasks.view import ModelView
 
@@ -39,9 +40,12 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         self.view = ModelView(model, args=args)
         return model
 
+
     def begin_valid_epoch(self, epoch, model):
         trainer = get_trainer()
-        criterion = trainer.criterion
+
+        # 使用交叉熵，不使用label smoothing
+        criterion = cross_entropy.CrossEntropyCriterion(task=self, sentence_avg=False)
 
         logger.info("Start accumulating gradient")
         dataset_for_split = self.dataset(self.args.split_subset)
@@ -62,9 +66,10 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         for i, sample in enumerate(batch_iterator):
             if self.cuda:
                 sample = utils.move_to_cuda(sample)
-            for lang_pair in self.lang_pairs:
+            for lang_pair in self.lang_pairs:  # 正常情况下，每个batch只有一个语言
                 if sample.get(lang_pair, None) is None:
                     continue
+                # 计算这个batch对应的loss
                 loss, _, _ = criterion(model.models[lang_pair], sample[lang_pair])
                 # 缩放一下，避免出现NAN
                 loss = loss / len(batch_iterator) / self.split_interval

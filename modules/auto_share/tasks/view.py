@@ -59,7 +59,9 @@ class ModelView:
             return module.grad.view(-1).data.cpu()
         else:
             assert isinstance(module, nn.Module), module
-            return torch.cat([p.grad.view(-1) for p in module.parameters()]).data.cpu()
+            # 按顺序拼接
+            grads = [p.grad.view(-1) for _, p in sorted(module.named_parameters(), key=lambda pair: pair[0])]
+            return torch.cat(grads).data.cpu()
 
     def accum_gradient(self, lang_pair):
         cur_model = self.model.models[lang_pair]
