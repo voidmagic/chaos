@@ -11,6 +11,9 @@
       <sshConfig authType="OPEN_SSH" host="172.18.31.57" id="c4c0955f-dd82-449d-a571-a008e1bdd6e5" port="22" customName="57" nameFormat="CUSTOM" username="qwang">
         <option name="customName" value="57" />
       </sshConfig>
+      <sshConfig authType="OPEN_SSH" host="172.18.31.60" id="2bbbfc59-77c5-4e78-8918-b9ecf61230df" port="22" customName="60" nameFormat="CUSTOM" username="qwang">
+        <option name="customName" value="60" />
+      </sshConfig>
     </configs>
   </component>
 </project>

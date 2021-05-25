@@ -22,6 +22,16 @@
           </excludedPaths>
         </serverdata>
       </paths>
+      <paths name="60">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/data/qwang/000-code/chaos" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+          <excludedPaths>
+            <excludedPath local="true" path="$PROJECT_DIR$/data" />
+          </excludedPaths>
+        </serverdata>
+      </paths>
       <paths name="nlpr">
         <serverdata>
           <mappings>
