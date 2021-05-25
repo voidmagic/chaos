@@ -67,6 +67,7 @@ class AutoShareTranslationTask(SampledMultilingualTask):
             if self.cuda:
                 sample = utils.move_to_cuda(sample)
             for lang_pair in self.lang_pairs:  # 正常情况下，每个batch只有一个语言
+                model.zero_grad()
                 if sample.get(lang_pair, None) is None:
                     continue
                 # 计算这个batch对应的loss
