@@ -58,6 +58,7 @@ class MultilingualSampledDataset(RoundRobinZipDatasets):
         return batch_sampler
 
     def map_multilingual_sampler(self, batch_sampler_dict):
+        random.seed(0)
         assert self.sample_method in ['uniform', 'temperature', 'proportional']
         if self.sample_method == 'uniform':
             weights = OrderedDict([(key, 1) for key, value in self.datasets.items()])
