@@ -43,10 +43,12 @@ class AutoShareTranslationTask(SampledMultilingualTask):
 
     def begin_valid_epoch(self, epoch, model):
         trainer = get_trainer()
+        # 多卡情况下不能记录每个语言分别的梯度，因为不同卡的batch语言可能不一样！
+        if not trainer.is_data_parallel_master:
+            return
 
         # 使用交叉熵，不使用label smoothing
         criterion = cross_entropy.CrossEntropyCriterion(task=self, sentence_avg=False)
-        model = trainer.model
 
         logger.info("Start accumulating gradient")
         dataset_for_split = self.dataset(self.args.split_subset)
@@ -60,8 +62,6 @@ class AutoShareTranslationTask(SampledMultilingualTask):
             required_batch_size_multiple=self.args.required_batch_size_multiple,
             seed=self.args.seed,
             num_workers=self.args.num_workers,
-            num_shards=trainer.data_parallel_world_size,
-            shard_id=trainer.data_parallel_rank,
             data_buffer_size=self.args.data_buffer_size,
         ).next_epoch_itr(shuffle=False)
 
@@ -78,17 +78,13 @@ class AutoShareTranslationTask(SampledMultilingualTask):
                 # 缩放一下，避免出现NAN
                 loss = loss / len(batch_iterator) / self.split_interval
                 loss.backward()
-
-                if hasattr(model, "all_reduce"):
-                    model.all_reduce()
-
                 self.view.accum_gradient(lang_pair)
                 model.zero_grad()
         model.train()
 
         self.split_counter += 1
         if self.split_counter % self.split_interval == 0:
-            if self.split_only_record and trainer.is_data_parallel_master:
+            if self.split_only_record:
                 torch.save(self.view.gradients, os.path.join(self.args.save_dir, "{}.pt".format(int(time.time()))))
             else:
                 self.view.auto_split()      # 切分参数
