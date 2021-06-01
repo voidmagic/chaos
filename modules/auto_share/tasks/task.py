@@ -21,6 +21,7 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         SampledMultilingualTask.add_args(parser)
         parser.add_argument('--split-only-record', default='False', type=str, metavar='BOOL')
         parser.add_argument('--split-interval', default=5, type=int)
+        parser.add_argument('--split-start', default=0, type=int)
         parser.add_argument('--split-subset', default='multi', type=str)
         parser.add_argument('--split-all', default='True', type=str, metavar='BOOL',
                             help='和threshold一起使用，如果split-all设置为False，那么每次只会拆分出来一个参数；'
@@ -42,11 +43,11 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         return model
 
     def begin_valid_epoch(self, epoch, model):
-        trainer = get_trainer()
-        # 多卡情况下不能记录每个语言分别的梯度，因为不同卡的batch语言可能不一样！
-        if not trainer.is_data_parallel_master:
+        self.split_counter += 1
+        if self.split_counter < self.args.split_start:
             return
 
+        trainer = get_trainer()
         # 使用交叉熵，不使用label smoothing
         criterion = cross_entropy.CrossEntropyCriterion(task=self, sentence_avg=False)
 
@@ -82,7 +83,6 @@ class AutoShareTranslationTask(SampledMultilingualTask):
                 model.zero_grad()
         model.train()
 
-        self.split_counter += 1
         if self.split_counter % self.split_interval == 0:
             if self.split_only_record:
                 torch.save(self.view.gradients, os.path.join(self.args.save_dir, "{}.pt".format(int(time.time()))))
