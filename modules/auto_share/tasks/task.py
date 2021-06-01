@@ -22,10 +22,11 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         parser.add_argument('--split-only-record', default='False', type=str, metavar='BOOL')
         parser.add_argument('--split-interval', default=5, type=int)
         parser.add_argument('--split-subset', default='multi', type=str)
-        parser.add_argument('--split-all', default='True', type=str, metavar='BOOL')
+        parser.add_argument('--split-all', default='True', type=str, metavar='BOOL',
+                            help='和threshold一起使用，如果split-all设置为False，那么每次只会拆分出来一个参数；'
+                                 '如果为True，那么距离大于threshold的都会被拆分开')
         parser.add_argument('--split-threshold', default=0.0, type=float)
         parser.add_argument('--split-granularity', default='parameter', choices=['parameter', 'module', 'layer'])
-
 
     def __init__(self, args, dicts, training):
         super().__init__(args, dicts, training)
@@ -39,7 +40,6 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         model = super(AutoShareTranslationTask, self).build_model(args)
         self.view = ModelView(model, args=args)
         return model
-
 
     def begin_valid_epoch(self, epoch, model):
         trainer = get_trainer()
