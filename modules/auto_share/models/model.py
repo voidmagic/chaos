@@ -123,7 +123,7 @@ class Model(MultilingualTransformerModel):
             encoders[lang_pair] = get_encoder()
             decoders[lang_pair] = get_decoder()
 
-        return cls(encoders, decoders, share=task.training, granularity=getattr(task, 'split_granularity', 'layer'))
+        return cls(encoders, decoders, share=task.training, granularity=getattr(args, 'split_granularity', 'layer'))
 
 
 @register_model_architecture("auto_share_multilingual", "auto_base")
