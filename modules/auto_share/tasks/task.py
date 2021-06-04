@@ -23,10 +23,7 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         parser.add_argument('--split-interval', default=5, type=int)
         parser.add_argument('--split-start', default=0, type=int)
         parser.add_argument('--split-subset', default='multi', type=str)
-        parser.add_argument('--split-all', default='True', type=str, metavar='BOOL',
-                            help='和threshold一起使用，如果split-all设置为False，那么每次只会拆分出来一个参数；'
-                                 '如果为True，那么距离大于threshold的都会被拆分开')
-        parser.add_argument('--split-threshold', default=0.0, type=float)
+        parser.add_argument('--split-count', default=1, type=int, metavar='BOOL', help='每次拆分多少个')
         parser.add_argument('--split-granularity', default='parameter', choices=['parameter', 'module', 'layer'])
 
     def __init__(self, args, dicts, training):

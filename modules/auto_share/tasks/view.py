@@ -21,8 +21,7 @@ def name2module(module, name):
 class ModelView:
     def __init__(self, model, args):
         self.model = model
-        self.split_all = utils.eval_bool(args.split_all)
-        self.threshold = args.split_threshold
+        self.split_count = args.split_count
         self.granularity = args.split_granularity
 
         # 初始化的时候，为全共享模型
@@ -81,21 +80,16 @@ class ModelView:
             divergences[name] = calculate_div(module_gradients)
 
         # 按距离排序，从大到小，-1表示距离最小，所有距离>T的module
-        sorted_divergences = [d for d in sorted(divergences.items(), key=lambda item: -item[1][1]) if d[1][1] > self.threshold]
-
-        if len(sorted_divergences) == 0:
-            logger.info('Skip split due to distance < {}.'.format(self.threshold))
-        else:
-            logger.info('Cosine distance > {}: {} / {}'.format(self.threshold, len(sorted_divergences), len(divergences)))
-            for best_name, (best_lang_pairs, best_score) in sorted_divergences:
-                logger.info('Split shared parameters: {}'.format(best_name))
-                logger.info('This parameter is shared by {}'.format(','.join(best_lang_pairs[0] + best_lang_pairs[1])))
-                logger.info('After split: {}   {}'.format(','.join(best_lang_pairs[0]), ','.join(best_lang_pairs[1])))
-                logger.info('Cosine distance is {}'.format(best_score))
-                self.split_module(best_name, best_lang_pairs)
-
-                if not self.split_all:
-                    break
+        sorted_divergences = [d for d in sorted(divergences.items(), key=lambda item: -item[1][1])]
+        logger.info('Top 10 cosine distance: ')
+        for best_name, (_, best_score) in sorted_divergences[:10]:
+            logger.info('{}: {}'.format(best_name, best_score))
+        for best_name, (best_lang_pairs, best_score) in sorted_divergences[:self.split_count]:
+            logger.info('Split shared parameters: {}'.format(best_name))
+            logger.info('This parameter is shared by {}'.format(','.join(best_lang_pairs[0] + best_lang_pairs[1])))
+            logger.info('After split: {}   {}'.format(','.join(best_lang_pairs[0]), ','.join(best_lang_pairs[1])))
+            logger.info('Cosine distance is {}'.format(best_score))
+            self.split_module(best_name, best_lang_pairs)
 
     def split_module(self, module_to_split, split_lang_pairs):
         # 1. 修改container的内容
