@@ -5,8 +5,6 @@ from fairseq.tasks.multilingual_translation import MultilingualTranslationTask
 
 from .dataset import MultilingualSampledDataset
 
-logger = logging.getLogger(__name__)
-
 
 @register_task("sample_mnmt")
 class SampledMultilingualTask(MultilingualTranslationTask):
@@ -18,6 +16,8 @@ class SampledMultilingualTask(MultilingualTranslationTask):
 
     def load_dataset(self, split, epoch=1, **kwargs):
         super(SampledMultilingualTask, self).load_dataset(split, epoch)
+        if split != 'train':
+            return
         self.datasets[split] = MultilingualSampledDataset(
             self.datasets[split].datasets,
             self.datasets[split].eval_key,

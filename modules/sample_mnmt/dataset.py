@@ -1,8 +1,11 @@
+import logging
 from collections import OrderedDict
 from itertools import chain, cycle
 import random
 
 from fairseq.data import RoundRobinZipDatasets
+
+logger = logging.getLogger(__name__)
 
 
 class MultilingualSampledDataset(RoundRobinZipDatasets):
@@ -63,9 +66,9 @@ class MultilingualSampledDataset(RoundRobinZipDatasets):
         if self.sample_method == 'uniform':
             weights = OrderedDict([(key, 1) for key, value in self.datasets.items()])
         elif self.sample_method == 'proportional':
-            weights = {key: len(value) for key, value in batch_sampler_dict.items()}
+            weights = {key: len(value) for key, value in self.datasets.items()}
         else:
-            weights = {key: len(value) ** (1 / self.temperature) for key, value in batch_sampler_dict.items()}
+            weights = {key: len(value) ** (1 / self.temperature) for key, value in self.datasets.items()}
 
         offset = [(key, len(dataset)) for key, dataset in self.datasets.items()]
         offset = [(key, sum([v[1] for v in offset[:i + 1]]) - value) for i, (key, value) in enumerate(offset)]
@@ -76,10 +79,18 @@ class MultilingualSampledDataset(RoundRobinZipDatasets):
                 for col in range(len(batch_sampler[row])):
                     batch_sampler[row][col] += offset[key]
             random.shuffle(batch_sampler_dict[key])
-        max_key, _ = max(batch_sampler_dict.items(), key=lambda item: len(item[1]))
-        estimate_batch = {key: int(weight / weights[max_key] * len(batch_sampler_dict[max_key]))
-                          for key, weight in weights.items()}
+        max_key, _ = max(self.datasets.items(), key=lambda item: len(item[1]))
+        total_samples = len(self.datasets[max_key]) / weights[max_key]
+        estimate_samples = {key: int(total_samples * weight) for key, weight in weights.items()}
+        sample_per_batch = {key: len(dataset) / len(batch_sampler_dict[key]) for key, dataset in self.datasets.items()}
+        estimate_batch = {key: int(estimate_samples[key] / sample_per_batch[key]) for key in self.datasets.keys()}
         endless_cycle = {key: cycle(batch_sampler) for key, batch_sampler in batch_sampler_dict.items()}
-        batch_sampler_weighted = [[next(batch_iter) for _ in range(estimate_batch[key])]
-                                  for key, batch_iter in endless_cycle.items()]
+        batch_sampler_weighted = [[next(batch_iter) for _ in range(estimate_batch[key])] for key, batch_iter in endless_cycle.items()]
+
+        logger.info('Sampled sentences: ')
+        for key, value in self.datasets.items():
+            logger.info('{}: {}-{}'.format(key, len(value), estimate_samples[key]))
+        logger.info('Sampled batches: ')
+        for key, value in batch_sampler_dict.items():
+            logger.info('{}: {}-{}'.format(key, len(value), estimate_batch[key]))
         return list(chain.from_iterable(batch_sampler_weighted))
