@@ -10,21 +10,21 @@
         </fileTransfer>
       </webServer>
       <webServer id="c7ae23bb-707d-4592-9898-f8406365076d" name="57">
-        <fileTransfer accessType="SFTP" host="172.18.31.57" port="22" sshConfigId="c4c0955f-dd82-449d-a571-a008e1bdd6e5" sshConfig="57" authAgent="true">
+        <fileTransfer rootFolder="/data/qwang" accessType="SFTP" host="172.18.31.57" port="22" sshConfigId="c4c0955f-dd82-449d-a571-a008e1bdd6e5" sshConfig="57" authAgent="true">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>
         </fileTransfer>
       </webServer>
       <webServer id="4bc91a5a-ffc5-4f12-823a-e889cfdd2fb8" name="54">
-        <fileTransfer accessType="SFTP" host="54" port="22" sshConfigId="35cdea02-a679-4d2b-85f1-75b27784a5b1" sshConfig="qwang@54:22 agent" authAgent="true">
+        <fileTransfer rootFolder="/home/qwang" accessType="SFTP" host="54" port="22" sshConfigId="35cdea02-a679-4d2b-85f1-75b27784a5b1" sshConfig="54" authAgent="true">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>
         </fileTransfer>
       </webServer>
       <webServer id="8f6b161f-3809-4f1f-acd5-ebf3658d35f9" name="60">
-        <fileTransfer accessType="SFTP" host="172.18.31.60" port="22" sshConfigId="2bbbfc59-77c5-4e78-8918-b9ecf61230df" sshConfig="60" authAgent="true">
+        <fileTransfer rootFolder="/data/qwang" accessType="SFTP" host="172.18.31.60" port="22" sshConfigId="2bbbfc59-77c5-4e78-8918-b9ecf61230df" sshConfig="60" authAgent="true">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>
