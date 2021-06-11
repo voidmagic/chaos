@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from itertools import chain
 
 import torch
 from fairseq import utils
@@ -39,16 +40,12 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         self.view = ModelView(model, args=args)
         return model
 
-    def begin_valid_epoch(self, epoch, model):
-        self.split_counter += 1
-        if self.split_counter < self.args.split_start:
-            return
+    def record_gradient(self, model):
+        logger.info("Start accumulating gradient")
 
-        trainer = get_trainer()
         # 使用交叉熵，不使用label smoothing
         criterion = cross_entropy.CrossEntropyCriterion(task=self, sentence_avg=False)
 
-        logger.info("Start accumulating gradient")
         dataset_for_split = self.dataset(self.args.split_subset)
 
         batch_iterator = self.get_batch_iterator(
@@ -80,15 +77,63 @@ class AutoShareTranslationTask(SampledMultilingualTask):
                 model.zero_grad()
         model.train()
 
+    def begin_valid_epoch(self, epoch, model):
+        self.split_counter += 1
+        if self.split_counter < self.args.split_start:
+            return
+
+        trainer = get_trainer()
+
+        old_state = trainer.optimizer.state_dict()
+        exp_avg_dict, exp_avg_sq_dict = record_optimizer_state(old_state, trainer)
+
+        # 记录梯度
+        self.record_gradient(model)
+
         if self.split_counter % self.split_interval == 0:
             if self.split_only_record:
+                # 仅记录梯度，不拆分
                 torch.save(self.view.gradients, os.path.join(self.args.save_dir, "{}.pt".format(int(time.time()))))
             else:
-                self.view.auto_split()      # 切分参数
-                trainer.reinitialize()      # 把所有参数加入优化器
+                # 切分参数
+                logger.info("num. model params before: {}".format(sum(p.numel() for p in model.parameters())))
+                name_mapping = list(self.view.auto_split())
+                reload_optimizer_state(trainer, exp_avg_dict, exp_avg_sq_dict, name_mapping, old_state)
                 logger.info("num. model params after: {}".format(sum(p.numel() for p in model.parameters())))
-
             self.view.clear_gradient()  # 清空梯度
+
+
+def record_optimizer_state(state, trainer):
+    # 记录Adam的状态
+    exp_avg_dict, exp_avg_sq_dict, offset = {}, {}, 0
+    all_named_params = chain(trainer.model.named_parameters(), trainer.criterion.named_parameters())
+    for name, param in list(filter(lambda p: p[1].requires_grad, all_named_params)):
+        exp_avg_dict[name] = state['state'][0]['exp_avg'][offset: offset + param.numel()]
+        exp_avg_sq_dict[name] = state['state'][0]['exp_avg_sq'][offset: offset + param.numel()]
+        offset += param.numel()
+    return exp_avg_dict, exp_avg_sq_dict
+
+
+def reload_optimizer_state(trainer, exp_avg_dict, exp_avg_sq_dict, name_mapping, state):
+    # 把所有参数加入优化器，并保留原Adam优化器的状态
+    # 1. 删除原来的Adam
+    trainer._optimizer = None
+    # 2. 修改原Adam的状态
+    exp_avg_new, exp_avg_sq_new = [], []
+    all_named_params = chain(trainer.model.named_parameters(), trainer.criterion.named_parameters())
+    for name, param in list(filter(lambda p: p[1].requires_grad, all_named_params)):
+        # 如果参数以前就有，那就用以前的Adam状态
+        # 如果参数是新的，根据新旧参数映射词典改名
+        if name not in exp_avg_dict:
+            assert name not in exp_avg_sq_dict
+            for new_name, old_name in name_mapping:
+                name = name.replace(new_name, old_name)
+        exp_avg_new.append(exp_avg_dict[name])
+        exp_avg_sq_new.append(exp_avg_sq_dict[name])
+
+    state['state'][0]['exp_avg'] = torch.cat(exp_avg_new)
+    state['state'][0]['exp_avg_sq'] = torch.cat(exp_avg_sq_new)
+    trainer.optimizer.load_state_dict(state)
 
 
 def get_trainer() -> Trainer:
