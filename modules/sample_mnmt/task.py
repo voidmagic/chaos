@@ -1,5 +1,3 @@
-import logging
-
 from fairseq.tasks import register_task
 from fairseq.tasks.multilingual_translation import MultilingualTranslationTask
 
