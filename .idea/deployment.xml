@@ -1,22 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="60">
+  <component name="PublishConfigData" autoUpload="Always" serverName="dev60">
     <serverData>
       <paths name="54">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/qwang/000-code/chaos" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="000-code/chaos" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
       <paths name="57">
         <serverdata>
           <mappings>
-            <mapping deploy="/data/qwang/000-code/chaos" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="000-code/chaos" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
       <paths name="60">
+        <serverdata>
+          <mappings>
+            <mapping deploy="000-code/chaos" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="dev60">
         <serverdata>
           <mappings>
             <mapping deploy="/tmp/pycharm_project_380" local="$PROJECT_DIR$" />
@@ -26,7 +33,7 @@
       <paths name="nlpr">
         <serverdata>
           <mappings>
-            <mapping deploy="/share/home/ai_wangqian/000-code/chaos" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="000-code/chaos" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
