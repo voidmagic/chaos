@@ -2,7 +2,6 @@ import logging
 import copy
 import torch
 import torch.nn as nn
-from fairseq import utils
 from collections import OrderedDict
 from sklearn.cluster import AgglomerativeClustering
 
@@ -89,7 +88,7 @@ class ModelView:
             logger.info('This parameter is shared by {}'.format(','.join(best_lang_pairs[0] + best_lang_pairs[1])))
             logger.info('After split: {}   {}'.format(','.join(best_lang_pairs[0]), ','.join(best_lang_pairs[1])))
             logger.info('Cosine distance is {}'.format(best_score))
-            self.split_module(best_name, best_lang_pairs)
+            yield self.split_module(best_name, best_lang_pairs)
 
     def split_module(self, module_to_split, split_lang_pairs):
         # 1. 修改container的内容
@@ -111,6 +110,7 @@ class ModelView:
             module_name = ".".join([module_to_split.split(".")[0], lang_pair] + module_to_split.split(".")[2:])
             module_tree = name2module(self.model, module_name)
             setattr(module_tree[-2], module_name.split(".")[-1], new_module)
+        return new_name, module_to_split
 
 
 def calculate_div(module_gradients):
