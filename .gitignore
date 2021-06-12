@@ -1,3 +1,5 @@
 # Created by .ignore support plugin (hsz.mobi)
 data
 .idea
+__pycache__/
+*.py[cod]
