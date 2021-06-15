@@ -27,6 +27,8 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         parser.add_argument('--split-subset', default='multi', type=str)
         parser.add_argument('--split-count', default=1, type=int, metavar='BOOL', help='每次拆分多少个')
         parser.add_argument('--split-granularity', default='parameter', choices=['parameter', 'module', 'layer'])
+        parser.add_argument('--split-momentum', default=0.0, type=float, help='其他任务的动量')
+
 
     def __init__(self, args, dicts, training):
         super().__init__(args, dicts, training)
@@ -36,6 +38,8 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         self.split_accum = min(args.split_accum, args.split_interval)
         self.split_only_record = utils.eval_bool(args.split_only_record)
         self.load_dataset(args.split_subset)
+        self.split_momentum = args.split_momentum
+        self.last_sample = None
 
     def build_model(self, args):
         model = super(AutoShareTranslationTask, self).build_model(args)
@@ -105,6 +109,17 @@ class AutoShareTranslationTask(SampledMultilingualTask):
                 reload_optimizer_state(trainer, exp_avg_dict, exp_avg_sq_dict, name_mapping, old_state)
                 logger.info("num. model params after: {}".format(sum(p.numel() for p in model.parameters())))
             self.view.clear_gradient()  # 清空梯度
+
+    def _per_lang_pair_train_loss(self, lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad):
+        # 上一步的样本，用当前语言的模型进行训练，梯度进行动量缩放
+        if self.last_sample is not None and self.split_momentum != 0.0:
+            loss, _, _ = criterion(model.models[lang_pair], self.last_sample)
+            loss *= self.split_momentum
+            optimizer.backward(loss)
+        self.last_sample = sample[lang_pair]
+
+        return super(AutoShareTranslationTask, self)._per_lang_pair_train_loss(
+            lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad)
 
 
 def record_optimizer_state(state, trainer):
