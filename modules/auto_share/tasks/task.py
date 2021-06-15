@@ -22,6 +22,7 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         SampledMultilingualTask.add_args(parser)
         parser.add_argument('--split-only-record', default='False', type=str, metavar='BOOL')
         parser.add_argument('--split-interval', default=5, type=int)
+        parser.add_argument('--split-accum', default=5, type=int)
         parser.add_argument('--split-start', default=0, type=int)
         parser.add_argument('--split-subset', default='multi', type=str)
         parser.add_argument('--split-count', default=1, type=int, metavar='BOOL', help='每次拆分多少个')
@@ -32,6 +33,7 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         self.view: ModelView = None
         self.cuda = torch.cuda.is_available() and not args.cpu
         self.split_counter, self.split_interval = 0, args.split_interval
+        self.split_accum = min(args.split_accum, args.split_interval)
         self.split_only_record = utils.eval_bool(args.split_only_record)
         self.load_dataset(args.split_subset)
 
@@ -71,7 +73,7 @@ class AutoShareTranslationTask(SampledMultilingualTask):
                 # 计算这个batch对应的loss
                 loss, _, _ = criterion(model.models[lang_pair], sample[lang_pair])
                 # 缩放一下，避免出现NAN
-                loss = loss / len(batch_iterator) / self.split_interval
+                loss = loss / len(batch_iterator) / self.split_accum
                 loss.backward()
                 self.view.accum_gradient(lang_pair)
                 model.zero_grad()
@@ -80,6 +82,8 @@ class AutoShareTranslationTask(SampledMultilingualTask):
     def begin_valid_epoch(self, epoch, model):
         self.split_counter += 1
         if self.split_counter < self.args.split_start:
+            return
+        if self.split_interval - (self.split_counter - 1) % self.split_interval > self.split_accum:
             return
 
         trainer = get_trainer()
