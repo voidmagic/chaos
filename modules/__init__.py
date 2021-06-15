@@ -6,3 +6,4 @@ from . import sync_mnmt
 from . import auto_share
 from . import sample_mnmt
 from . import temporal_attention
+from . import transfer
