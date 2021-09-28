@@ -110,16 +110,16 @@ class AutoShareTranslationTask(SampledMultilingualTask):
                 logger.info("num. model params after: {}".format(sum(p.numel() for p in model.parameters())))
             self.view.clear_gradient()  # 清空梯度
 
-    def _per_lang_pair_train_loss(self, lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad):
-        # 上一步的样本，用当前语言的模型进行训练，梯度进行动量缩放
-        if self.last_sample is not None and self.split_momentum != 0.0:
-            loss, _, _ = criterion(model.models[lang_pair], self.last_sample)
-            loss *= self.split_momentum
-            optimizer.backward(loss)
-        self.last_sample = sample[lang_pair]
-
-        return super(AutoShareTranslationTask, self)._per_lang_pair_train_loss(
-            lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad)
+    # def _per_lang_pair_train_loss(self, lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad):
+    #     # 上一步的样本，用当前语言的模型进行训练，梯度进行动量缩放
+    #     if self.last_sample is not None and self.split_momentum != 0.0:
+    #         loss, _, _ = criterion(model.models[lang_pair], self.last_sample)
+    #         loss *= self.split_momentum
+    #         optimizer.backward(loss)
+    #     self.last_sample = sample[lang_pair]
+    #
+    #     return super(AutoShareTranslationTask, self)._per_lang_pair_train_loss(
+    #         lang_pair, model, update_num, criterion, sample, optimizer, ignore_grad)
 
 
 def record_optimizer_state(state, trainer):

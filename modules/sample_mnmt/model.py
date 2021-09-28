@@ -46,5 +46,6 @@ def multilingual_transformer_small(args):
 
 @register_model_architecture("multilingual_transformer", "multilingual_transformer_big")
 def multilingual_transformer_small(args):
-    multilingual_transformer_iwslt_de_en(args)
+    transformer_wmt_en_de_big(args)
+    base_multilingual_architecture(args)
 

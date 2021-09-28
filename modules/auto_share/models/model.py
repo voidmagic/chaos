@@ -8,7 +8,7 @@ from fairseq.models import (
 from fairseq.models.multilingual_transformer import MultilingualTransformerModel
 from fairseq.models.transformer import (
     Embedding,
-    base_architecture,
+    base_architecture, transformer_wmt_en_de_big,
 )
 
 
@@ -122,7 +122,6 @@ class Model(MultilingualTransformerModel):
         for lang_pair, src, tgt in zip(task.model_lang_pairs, src_langs, tgt_langs):
             encoders[lang_pair] = get_encoder()
             decoders[lang_pair] = get_decoder()
-
         return cls(encoders, decoders, share=task.training, granularity=getattr(args, 'split_granularity', 'layer'))
 
 
@@ -143,3 +142,7 @@ def multilingual_transformer_auto_share_iwslt_de_en(args):
     args.decoder_layers = getattr(args, "decoder_layers", 6)
     base_multilingual_auto_share_architecture(args)
 
+
+@register_model_architecture("auto_share_multilingual", "auto_big")
+def big_multilingual_auto_share_architecture(args):
+    transformer_wmt_en_de_big(args)
