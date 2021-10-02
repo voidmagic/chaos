@@ -10,6 +10,7 @@ from . import sample_mnmt
 from . import temporal_attention
 from . import transfer
 from . import pcgrad
+from . import inter
 import os
 import logging
 from fairseq import checkpoint_utils
