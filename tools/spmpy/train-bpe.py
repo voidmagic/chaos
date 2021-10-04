@@ -8,6 +8,7 @@ import os
 import argparse
 import logging
 import collections
+import multiprocessing
 import utils.sentencepiece_model_pb2 as model
 
 logging.basicConfig(format="%(asctime)s | %(message)s", level="INFO", stream=sys.stdout)
@@ -50,30 +51,36 @@ def parse_args():
     return args
 
 
+def process(line_str):
+    line_byte = line_str.encode()
+    if len(line_byte) == 0:
+        return None
+    if len(line_byte) > MAX_SENTENCE_LENGTH:
+        return None
+    if K_UNK_BYTE in line_byte:
+        logging.info("Reserved chars are found. Skipped: " + line_str)
+        return None
+    return [K_SPACE_SYMBOL + word for word in line_str.split()]
+
+
 def read_files(input_files):
     char_counter = collections.Counter()
-    sentences = []
+    sentences, raw_sentences = [], []
     too_long_lines = 0
     for file_idx, filename in enumerate(input_files):
         logging.info("Loading corpus: " + filename)
         with open(filename, encoding='utf-8-sig') as f:
-            for line_str in f.readlines():
-                line_byte = line_str.encode()
-                if len(line_byte) == 0:
-                    continue
-                if len(line_byte) > MAX_SENTENCE_LENGTH:
-                    too_long_lines += 1
-                    continue
-                if K_UNK_BYTE in line_byte:
-                    logging.info("Reserved chars are found. Skipped: " + line_str)
-                    continue
-                line_list = [K_SPACE_SYMBOL + word for word in line_str.split()]
-                for word in line_list:
-                    char_counter.update(word)
-                sentences.append(line_list)
+            raw_sentences += f.readlines()
 
+    with multiprocessing.Pool(32) as p:
+        sentences = p.map(process, raw_sentences)
+
+    for sentence in sentences:
+        for word in sentence:
+            char_counter.update(word)
+    sentences = [s for s in sentences if s is not None]
     logging.info(f"Loaded all {len(sentences)} sentences")
-    logging.info(f"Skipped {too_long_lines} too long sentences.")
+    logging.info(f"Skipped {too_long_lines} sentences.")
     return sentences, char_counter
 
 
