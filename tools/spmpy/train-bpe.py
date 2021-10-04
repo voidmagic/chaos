@@ -66,7 +66,6 @@ def process(line_str):
 def read_files(input_files):
     char_counter = collections.Counter()
     sentences, raw_sentences = [], []
-    too_long_lines = 0
     for file_idx, filename in enumerate(input_files):
         logging.info("Loading corpus: " + filename)
         with open(filename, encoding='utf-8-sig') as f:
@@ -80,7 +79,7 @@ def read_files(input_files):
             char_counter.update(word)
     sentences = [s for s in sentences if s is not None]
     logging.info(f"Loaded all {len(sentences)} sentences")
-    logging.info(f"Skipped {too_long_lines} sentences.")
+    logging.info(f"Skipped {len(raw_sentences)-len(sentences)} sentences.")
     return sentences, char_counter
 
 
