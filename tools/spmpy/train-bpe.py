@@ -4,11 +4,11 @@
 # 3. apply bpe: spm_encode --model bpe.model < file > file.bpe
 
 import sys
+import os
 import argparse
 import logging
 import collections
-import sentencepiece_model_pb2 as model
-
+import utils.sentencepiece_model_pb2 as model
 
 logging.basicConfig(format="%(asctime)s | %(message)s", level="INFO", stream=sys.stdout)
 
@@ -43,7 +43,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=str)
     parser.add_argument("--vocab_size", type=int)
-    parser.add_argument("--raw_model", type=str)
+    parser.add_argument("--raw_model", type=str, default=os.path.dirname(__file__) + "/utils/model")
     parser.add_argument("--model_prefix", type=str)
     parser.add_argument("--character_coverage", type=float, default=0.9995)
     args = parser.parse_args()
