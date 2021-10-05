@@ -304,7 +304,7 @@ def train():
 
     final_pieces = loop(vocab_size, symbol_cache, active_symbols, word_symbols, word_counter_list, vocab_words)
 
-    save(final_pieces + vocab_chars + required_chars, args.model_prefix, args.raw_model)
+    save(final_pieces + required_chars, args.model_prefix, args.raw_model)
 
 
 if __name__ == '__main__':
