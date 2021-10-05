@@ -85,16 +85,15 @@ def read_files(input_files):
     return sentences, char_counter
 
 
-def char_set(char_counter, character_coverage):
+def char_set(char_counter, character_coverage, vocab_chars):
     all_char_count = sum(char_counter.values())
     logging.info(f"all chars count={all_char_count}")
 
     actual_char_count, required_chars = 0, []
     for char, count in sorted(char_counter.items(), key=lambda pair: (-pair[1], pair[0])):
-        required_chars.append(char)
-        actual_char_count += count
-        if actual_char_count >= all_char_count * character_coverage:
-            break
+        if char in vocab_chars:
+            required_chars.append(char)
+            actual_char_count += count
     logging.info(f"Alphabet size={len(required_chars)}")
     logging.info(f"Done: {actual_char_count / all_char_count :2.4%} characters are covered.")
     return required_chars
@@ -289,16 +288,15 @@ def train():
         vocab_words = vocab[:index]
         vocab_chars = vocab[index:]
         vocab_words.reverse()
-    logging.info(f"Initialize words {len(vocab_words)} char {len(vocab_chars)}")
+    logging.info(f"Initial words {len(vocab_words)} chars {len(vocab_chars)}")
     sentences, char_counter = read_files(args.input.split(','))
-    required_chars = char_set(char_counter, args.character_coverage)
+    required_chars = vocab_chars
     word_counter, word_counter_list = word_set(sentences, required_chars)
 
     symbol_cache = dict()  # text to symbol
     word_symbols = initialize_symbols(symbol_cache, word_counter, char_counter)
     active_symbols = initialize_bigram_symbols(symbol_cache, word_symbols)
-    required_chars = [c for c in required_chars if c not in vocab_chars]
-    vocab_size = args.vocab_size - len(META_PIECES) - len(required_chars) - len(vocab_chars)
+    vocab_size = args.vocab_size - len(META_PIECES) - len(required_chars)
 
     if vocab_size < len(vocab_words):
         logging.info(f"Vocab size too small {vocab_size} < {len(vocab_words)}")
