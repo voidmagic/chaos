@@ -2,7 +2,7 @@
 # 1. normalize: spm_normalize --model model file > file.norm
 # 2. learn bpe: python train-bpe.py --raw_model model --input=file.norm --vocab_size=2000 --character_coverage=0.99 --model_prefix=bpe
 # 3. apply bpe: spm_encode --model bpe.model < file > file.bpe
-
+import multiprocessing
 import sys
 import os
 import argparse
@@ -42,9 +42,8 @@ class Symbol:
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=str)
-    parser.add_argument("--vocab_size_1", type=int)
-    parser.add_argument("--vocab_size_2", type=int)
-    parser.add_argument("--focus", type=str, help="关注哪些语言，通过后缀判断")
+    parser.add_argument("--vocab_size", type=int)
+    parser.add_argument("--vocab", type=str, help="初始的词表")
     parser.add_argument("--raw_model", type=str, default=os.path.dirname(__file__) + "/utils/model")
     parser.add_argument("--model_prefix", type=str)
     parser.add_argument("--character_coverage", type=float, default=0.9995)
@@ -52,30 +51,37 @@ def parse_args():
     return args
 
 
+def process(line_str):
+    line_str = line_str.strip()
+    line_byte = line_str.encode()
+    if len(line_byte) == 0:
+        return None
+    if len(line_byte) > MAX_SENTENCE_LENGTH:
+        return None
+    if K_UNK_BYTE in line_byte:
+        logging.info("Reserved chars are found. Skipped: " + line_str)
+        return None
+    return [K_SPACE_SYMBOL + word for word in line_str.split()]
+
+
 def read_files(input_files):
     char_counter = collections.Counter()
-    sentences = []
-    too_long_lines = 0
+    sentences, raw_sentences = [], []
     for file_idx, filename in enumerate(input_files):
         logging.info("Loading corpus: " + filename)
         with open(filename, encoding='utf-8-sig') as f:
-            for line_str in f.readlines():
-                line_byte = line_str.encode()
-                if len(line_byte) == 0:
-                    continue
-                if len(line_byte) > MAX_SENTENCE_LENGTH:
-                    too_long_lines += 1
-                    continue
-                if K_UNK_BYTE in line_byte:
-                    logging.info("Reserved chars are found. Skipped: " + line_str)
-                    continue
-                line_list = [K_SPACE_SYMBOL + word for word in line_str.split()]
-                for word in line_list:
-                    char_counter.update(word)
-                sentences.append(line_list)
+            raw_sentences += f.readlines()
 
+    with multiprocessing.Pool(32) as p:
+        sentences = p.map(process, raw_sentences)
+
+    sentences = [s for s in sentences if s is not None]
+    for sentence in sentences:
+        for word in sentence:
+            char_counter.update(word)
+    sentences = [s for s in sentences if s is not None]
     logging.info(f"Loaded all {len(sentences)} sentences")
-    logging.info(f"Skipped {too_long_lines} too long sentences.")
+    logging.info(f"Skipped {len(raw_sentences)-len(sentences)} sentences.")
     return sentences, char_counter
 
 
@@ -152,8 +158,7 @@ def compute_frequency(symbol: Symbol, word_symbols, word_counter):
     prev_sid, prev_left, prev_right, idx = -1, 0, 0, 0
     while idx < len(symbol.positions):
         sid, left, right = symbol.positions[idx]
-        if (prev_sid == sid and left == prev_right) or symbol.left != word_symbols[sid][left] or symbol.right != \
-                word_symbols[sid][right]:
+        if (prev_sid == sid and left == prev_right) or symbol.left != word_symbols[sid][left] or symbol.right != word_symbols[sid][right]:
             del symbol.positions[idx]
             prev_sid, prev_left, prev_right = -1, 0, 0
         else:
@@ -162,12 +167,18 @@ def compute_frequency(symbol: Symbol, word_symbols, word_counter):
             idx += 1
 
 
-def update_active_symbols(symbol_cache, active_symbols, word_symbols, word_counter_list):
+def update_active_symbols(symbol_cache, active_symbols, word_symbols, word_counter_list, require_all):
+    if require_all:
+        active_symbols.clear()
+        active_symbols.update([symbol for symbol in symbol_cache.values() if symbol.is_bigram()])
+        return
+
     symbols = []
-    for word, symbol in symbol_cache.items():
+    for symbol in symbol_cache.values():
         if symbol.is_bigram():
             compute_frequency(symbol, word_symbols, word_counter_list)
             symbols.append(symbol)
+
     size = int(min(max(K_MIN_ACTIVE_SYMBOL_SIZE, len(symbol_cache) * K_TOP_FREQUENT_RATIO), len(symbols)))
     symbols = sorted(symbols, key=lambda s: s.freq, reverse=True)[:size]
     logging.info(f"Updating active symbols. max_freq={symbols[0].freq} min_freq={symbols[-1].freq}")
@@ -175,29 +186,35 @@ def update_active_symbols(symbol_cache, active_symbols, word_symbols, word_count
     active_symbols.update(symbols)
 
 
-def loop(vocab_size, symbol_cache, active_symbols, word_symbols, word_counter_list):
+def loop(vocab_size, symbol_cache, active_symbols, word_symbols, word_counter_list, vocab_words):
     final_pieces = list()
     while len(final_pieces) < vocab_size:
         if len(final_pieces) % K_UPDATE_ACTIVE_SYMBOL_INTERVAL == 0:
-            update_active_symbols(symbol_cache, active_symbols, word_symbols, word_counter_list)
+            update_active_symbols(symbol_cache, active_symbols, word_symbols, word_counter_list, require_all=len(vocab_words)>0)
 
         best_symbol: Symbol = None
-        for symbol in active_symbols:
-            compute_frequency(symbol, word_symbols, word_counter_list)
-            if best_symbol is None or (symbol.freq > best_symbol.freq or (
-                    symbol.freq == best_symbol.freq and (len(symbol.text) < len(best_symbol.text) or (
-                    len(symbol.text) == len(best_symbol.text) and symbol.text < best_symbol.text)))):
-                best_symbol = symbol
+
+        if len(vocab_words) > 0:
+            first_word = vocab_words.pop()
+            best_symbol = symbol_cache.get(first_word)
+            if best_symbol is None:
+                final_pieces.append(first_word)
+                continue
+        else:
+            for symbol in active_symbols:
+                compute_frequency(symbol, word_symbols, word_counter_list)
+                if best_symbol is None or (symbol.freq > best_symbol.freq or (
+                        symbol.freq == best_symbol.freq and (len(symbol.text) < len(best_symbol.text) or (
+                        len(symbol.text) == len(best_symbol.text) and symbol.text < best_symbol.text)))):
+                    best_symbol = symbol
 
         if best_symbol is None:
             logging.info("No valid symbol found")
             break
 
-        if best_symbol.text in final_pieces:
-            continue
-
-        final_pieces.append(best_symbol.text)
-        logging.info(f"Added: freq={best_symbol.freq} size={len(final_pieces)} all={len(symbol_cache)} active={len(active_symbols)} piece={best_symbol.text}")
+        if best_symbol.text not in final_pieces:
+            final_pieces.append(best_symbol.text)
+            logging.info(f"Added: freq={best_symbol.freq} size={len(final_pieces)} all={len(symbol_cache)} active={len(active_symbols)} piece={best_symbol.text}")
 
         for sid, left, right in best_symbol.positions:
             if word_symbols[sid][left] is None:
@@ -264,6 +281,15 @@ def save(pieces, model_prefix, raw_model):
 
 def train():
     args = parse_args()
+
+    # load initial vocab
+    with open(args.vocab) as f:
+        vocab = [l.strip().split()[0] for l in f][3:]
+        index = vocab.index(K_SPACE_SYMBOL)
+        vocab_words = vocab[:index]
+        vocab_chars = vocab[index:]
+        vocab_words.reverse()
+    logging.info(f"Initialize words {len(vocab_words)} char {len(vocab_chars)}")
     sentences, char_counter = read_files(args.input.split(','))
     required_chars = char_set(char_counter, args.character_coverage)
     word_counter, word_counter_list = word_set(sentences, required_chars)
@@ -271,10 +297,16 @@ def train():
     symbol_cache = dict()  # text to symbol
     word_symbols = initialize_symbols(symbol_cache, word_counter, char_counter)
     active_symbols = initialize_bigram_symbols(symbol_cache, word_symbols)
-    vocab_size = args.vocab_size - len(META_PIECES) - len(required_chars)
-    final_pieces = loop(vocab_size, symbol_cache, active_symbols, word_symbols, word_counter_list)
+    required_chars = [c for c in required_chars if c not in vocab_chars]
+    vocab_size = args.vocab_size - len(META_PIECES) - len(required_chars) - len(vocab_chars)
 
-    save(final_pieces + required_chars, args.model_prefix, args.raw_model)
+    if vocab_size < len(vocab_words):
+        logging.info(f"Vocab size too small {vocab_size} < {len(vocab_words)}")
+        return
+
+    final_pieces = loop(vocab_size, symbol_cache, active_symbols, word_symbols, word_counter_list, vocab_words)
+
+    save(final_pieces + vocab_chars + required_chars, args.model_prefix, args.raw_model)
 
 
 if __name__ == '__main__':
