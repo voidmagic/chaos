@@ -1,7 +1,5 @@
 import multiprocessing
-import os
 import argparse
-import collections
 
 
 def parse_args():
@@ -66,7 +64,6 @@ def main():
     args = parse_args()
     sentences = read_files(args.prefix, args.lang_pairs)
     write_files(sentences, args.output, args.lang_pairs)
-
 
 
 if __name__ == '__main__':
