@@ -22,7 +22,7 @@ class GoogleMultilingualTranslationTask(TranslationTask):
                 raise FileNotFoundError(os.path.join(self.args.data, '{}.{}-{}.*'.format(split, tgt, src)))
 
             src_raw_dataset = data_utils.load_indexed_dataset(prefix + src, self.src_dict)
-            return (PrependTokenDataset(src_raw_dataset, self.src_dict.index('__2<{}>__'.format(self.args.target_lang))),
+            return (PrependTokenDataset(src_raw_dataset, self.src_dict.index('__2<{}>__'.format(tgt))),
                     data_utils.load_indexed_dataset(prefix + tgt, self.tgt_dict))
 
         if getattr(self.args, 'gen_subset', 'test') == split:
