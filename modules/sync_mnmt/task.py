@@ -20,13 +20,20 @@ def dataset_equal(*datasets):
     return True
 
 
+class Config:
+    n_lang = None
+    manner = 'tanh'
+    tanh_weight = 0.1
+
+
 @register_task("sync_mnmt")
 class SyncTranslationTask(GoogleMultilingualTranslationTask):
 
     def load_dataset(self, split, **kwargs):
+        Config.n_lang = len(self.args.lang_pairs)
+
         def load_data(src, tgt):
-            if indexed_dataset.dataset_exists(os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, src, tgt, src)),
-                                              None):
+            if indexed_dataset.dataset_exists(os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, src, tgt, src)), None):
                 prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split, src, tgt))
             elif indexed_dataset.dataset_exists(
                     os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, tgt, src, src)), None):

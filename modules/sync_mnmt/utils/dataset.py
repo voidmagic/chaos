@@ -73,7 +73,7 @@ class MultiParallelDataset(FairseqLanguagePairDataset):
     def __init__(self, src, tgt, src_dict, *args, **kwargs):
         super(MultiParallelDataset, self).__init__(src, src.sizes, src_dict, *args, **kwargs)
         self.tgt = tgt
-        self.tgt_sizes = np.max(np.array([d.sizes for d in tgt]), axis=0)
+        self.tgt_sizes = np.sum(np.array([d.sizes for d in tgt]), axis=0)
         self.tgt_sizes_l = [d.sizes for d in tgt]
         self.src_dict = src_dict
         self.tgt_dict = src_dict
@@ -103,17 +103,7 @@ class MultiParallelDataset(FairseqLanguagePairDataset):
 
     def num_tokens(self, index):
         """Return the number of tokens in a sample. This value is used to enforce ``--max-tokens`` during batching."""
-        return max(
-            self.src_sizes[index],
-            sum(s[index] for s in self.tgt_sizes_l),
-        )
-
-    def size(self, index):
-        """Return an example's size as a float or tuple. This value is used when filtering a dataset with ``--max-positions``."""
-        return (
-            self.src_sizes[index],
-            min(s[index] for s in self.tgt_sizes_l),
-        )
+        return max(self.src_sizes[index], sum(s[index] for s in self.tgt_sizes_l))
 
     def ordered_indices(self):
         if self.shuffle:
