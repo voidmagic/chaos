@@ -25,7 +25,7 @@ class GoogleMultilingualTranslationTask(TranslationTask):
             return (PrependTokenDataset(src_raw_dataset, self.src_dict.index('__2<{}>__'.format(tgt))),
                     data_utils.load_indexed_dataset(prefix + tgt, self.tgt_dict))
 
-        if getattr(self.args, 'gen_subset', 'test') == split:
+        if getattr(self.args, 'gen_subset', 'test') == split and self.args.source_lang != self.args.target_lang:
             src_prepend_dataset, tgt_raw_dataset = load_data(self.args.source_lang, self.args.target_lang)
             self.datasets[split] = LanguagePairDataset(src_prepend_dataset, src_prepend_dataset.sizes, self.src_dict, tgt_raw_dataset, tgt_raw_dataset.sizes, self.tgt_dict)
             return
@@ -47,7 +47,7 @@ class GoogleMultilingualTranslationTask(TranslationTask):
         args.lang_pairs = args.lang_pairs.split(',')
         args.lang_pairs = [lang_pair.split('-') for lang_pair in args.lang_pairs]
         if args.source_lang is None or args.target_lang is None:
-            args.source_lang, args.target_lang = args.lang_pairs[0]
+            args.source_lang = args.target_lang = args.lang_pairs[0][0]
         task = super(GoogleMultilingualTranslationTask, cls).setup_task(args)
         langs = list(set([lang for pair in args.lang_pairs for lang in pair]))
         for lang_token in sorted(['__2<{}>__'.format(lang) for lang in langs]):
