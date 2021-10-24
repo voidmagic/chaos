@@ -54,8 +54,8 @@ def collate(
     prev_output_tokens = torch.stack(torch.chunk(prev_output_tokens, n_lang))
     prev_output_tokens = prev_output_tokens.index_select(1, sort_order)
 
-    target = target.view(n_lang * len(samples), -1)[1:, ]
-    prev_output_tokens = prev_output_tokens.view(n_lang * len(samples), -1)[1:, ]
+    target = target.view(n_lang * len(samples), -1)[:, 1:]
+    prev_output_tokens = prev_output_tokens.view(n_lang * len(samples), -1)[:, 1:]
     batch = {
         "id": id,
         "nsentences": len(samples),
