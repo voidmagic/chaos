@@ -1,19 +1,23 @@
 
 import math
-from typing import Dict, List, Optional
+from typing import Optional
 
 import torch
-from fairseq.models.fairseq_encoder import EncoderOut
 from fairseq.sequence_generator import SequenceGenerator as FairSequenceGenerator
 from torch import Tensor
-
 
 
 class SequenceGenerator(FairSequenceGenerator):
 
     def _generate(self, sample, prefix_tokens=None, constraints=None, bos_token=None):
         from modules.sync_mnmt.task import Config
+
         n_langs = Config.n_lang
+        target_lang = Config.infer_target
+        all_target_langs = list(Config.lang_idx)
+        all_target_langs.remove(target_lang)
+        all_target_langs.insert(0, target_lang)
+
         incremental_states = [{} for _ in self.model.models]
         net_input = sample["net_input"]
 
@@ -38,10 +42,9 @@ class SequenceGenerator(FairSequenceGenerator):
 
 
         # initialize buffers
-
         tokens = []
         scores = []
-        for lang_idx in Config.lang_idx:
+        for lang_idx in all_target_langs:
             _tokens = torch.zeros(bsz * beam_size, max_len + 2).to(src_tokens).long().fill_(self.pad)  # +2 for eos and pad
             _tokens[:, 0] = lang_idx
             tokens.append(_tokens)
@@ -51,7 +54,6 @@ class SequenceGenerator(FairSequenceGenerator):
         scores = torch.cat(scores, dim=0)
 
         bsz = bsz * n_langs
-        attn: Optional[Tensor] = None
 
         # A list that indicates candidates that should be ignored.
         # For example, suppose we're sampling and have already finalized 2/5
@@ -89,14 +91,13 @@ class SequenceGenerator(FairSequenceGenerator):
             lprobs[:, self.pad] = -math.inf  # never select pad
             lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
 
+            # lang x batch x beam, vocab
+            lprobs[tokens[:, 0] != target_lang, self.eos] = -math.inf  # never select eos for non-target languages
+
             # handle max length constraint
             if step >= max_len:
                 lprobs[:, : self.eos] = -math.inf
                 lprobs[:, self.eos + 1:] = -math.inf
-
-            if step < self.min_len:
-                # minimum length constraint
-                lprobs[:, self.eos] = -math.inf
 
             scores = scores.type_as(lprobs)
 
@@ -108,31 +109,21 @@ class SequenceGenerator(FairSequenceGenerator):
             # and dimensions: [bsz, cand_size]
             cand_bbsz_idx = cand_beams.add(bbsz_offsets)
 
-            # finalize hypotheses that end in eos
-            # Shape of eos_mask: (batch size, beam size)
+            # finalize hypotheses that end in eos. Shape of eos_mask: (batch size, beam size)
             eos_mask = cand_indices.eq(self.eos) & cand_scores.ne(-math.inf)
             eos_mask[:, :beam_size][cands_to_ignore] = torch.tensor(0).to(eos_mask)
+
+            eos_mask.view(n_langs, -1)[:] = torch.logical_or(eos_mask.view(n_langs, -1), eos_mask.view(n_langs, -1)[0])
 
             # only consider eos when it's among the top beam_size indices
             # Now we know what beam item(s) to finish
             # Shape: 1d list of absolute-numbered
             eos_bbsz_idx = torch.masked_select(cand_bbsz_idx[:, :beam_size], mask=eos_mask[:, :beam_size])
 
-            finalized_sents: List[int] = []
+            finalized_sents = []
             if eos_bbsz_idx.numel() > 0:
                 eos_scores = torch.masked_select(cand_scores[:, :beam_size], mask=eos_mask[:, :beam_size])
-                finalized_sents = self.finalize_hypos(
-                    step,
-                    eos_bbsz_idx,
-                    eos_scores,
-                    tokens,
-                    scores,
-                    finalized,
-                    finished,
-                    beam_size,
-                    attn,
-                    max_len,
-                )
+                finalized_sents = self.finalize_hypos(step, eos_bbsz_idx, eos_scores, tokens, scores, finalized, finished, beam_size, None, None, max_len)
                 num_remaining_sent -= len(finalized_sents)
 
             assert num_remaining_sent >= 0
@@ -212,127 +203,10 @@ class SequenceGenerator(FairSequenceGenerator):
             reorder_state = active_bbsz_idx
 
         # sort by score descending
-        for sent in range(len(finalized)):
+        assert len(finalized) % n_langs == 0
+
+        for sent in range(len(finalized) // n_langs):
             scores = torch.tensor([float(elem["score"].item()) for elem in finalized[sent]])
             _, sorted_scores_indices = torch.sort(scores, descending=True)
             finalized[sent] = [finalized[sent][ssi] for ssi in sorted_scores_indices]
-            finalized[sent] = torch.jit.annotate(List[Dict[str, Tensor]], finalized[sent])
         return finalized
-
-
-    def finalize_hypos(
-        self,
-        step: int,
-        bbsz_idx,
-        eos_scores,
-        tokens,
-        scores,
-        finalized: List[List[Dict[str, Tensor]]],
-        finished: List[bool],
-        beam_size: int,
-        attn: Optional[Tensor],
-        max_len: int,
-        src_lengths=None,
-    ):
-        """Finalize hypothesis, store finalized information in `finalized`, and change `finished` accordingly.
-        A sentence is finalized when {beam_size} finished items have been collected for it.
-
-        Returns number of sentences (not beam items) being finalized.
-        These will be removed from the batch and not processed further.
-        Args:
-            bbsz_idx (Tensor):
-        """
-        assert bbsz_idx.numel() == eos_scores.numel()
-
-        # clone relevant token and attention tensors.
-        # tokens is (batch * beam, max_len). So the index_select
-        # gets the newly EOS rows, then selects cols 1..{step + 2}
-        tokens_clone = tokens.index_select(0, bbsz_idx)[
-            :, 1 : step + 2
-        ]  # skip the first index, which is EOS
-
-        tokens_clone[:, step] = self.eos
-        attn_clone = (
-            attn.index_select(0, bbsz_idx)[:, :, 1 : step + 2]
-            if attn is not None
-            else None
-        )
-
-        # compute scores per token position
-        pos_scores = scores.index_select(0, bbsz_idx)[:, : step + 1]
-        pos_scores[:, step] = eos_scores
-        # convert from cumulative to per-position scores
-        pos_scores[:, 1:] = pos_scores[:, 1:] - pos_scores[:, :-1]
-
-        # normalize sentence-level scores
-        if self.normalize_scores:
-            eos_scores /= (step + 1) ** self.len_penalty
-
-        # cum_unfin records which sentences in the batch are finished.
-        # It helps match indexing between (a) the original sentences
-        # in the batch and (b) the current, possibly-reduced set of
-        # sentences.
-        cum_unfin: List[int] = []
-        prev = 0
-        for f in finished:
-            if f:
-                prev += 1
-            else:
-                cum_unfin.append(prev)
-
-        # set() is not supported in script export
-
-        # The keys here are of the form "{sent}_{unfin_idx}", where
-        # "unfin_idx" is the index in the current (possibly reduced)
-        # list of sentences, and "sent" is the index in the original,
-        # unreduced batch
-        sents_seen: Dict[str, Optional[Tensor]] = {}
-
-        # For every finished beam item
-        for i in range(bbsz_idx.size()[0]):
-            idx = bbsz_idx[i]
-            score = eos_scores[i]
-            # sentence index in the current (possibly reduced) batch
-            unfin_idx = idx // beam_size
-            # sentence index in the original (unreduced) batch
-            sent = unfin_idx + cum_unfin[unfin_idx]
-            # print(f"{step} FINISHED {idx} {score} {sent}={unfin_idx} {cum_unfin}")
-            # Cannot create dict for key type '(int, int)' in torchscript.
-            # The workaround is to cast int to string
-            seen = str(sent.item()) + "_" + str(unfin_idx.item())
-            if seen not in sents_seen:
-                sents_seen[seen] = None
-
-            # An input sentence (among those in a batch) is finished when
-            # beam_size hypotheses have been collected for it
-            if len(finalized[sent]) < beam_size:
-                if attn_clone is not None:
-                    # remove padding tokens from attn scores
-                    hypo_attn = attn_clone[i]
-                else:
-                    hypo_attn = torch.empty(0)
-
-                finalized[sent].append(
-                    {
-                        "tokens": tokens_clone[i],
-                        "score": score,
-                        "attention": hypo_attn,  # src_len x tgt_len
-                        "alignment": torch.empty(0),
-                        "positional_scores": pos_scores[i],
-                    }
-                )
-
-        newly_finished: List[int] = []
-
-        for seen in sents_seen.keys():
-            # check termination conditions for this sentence
-            sent: int = int(float(seen.split("_")[0]))
-            unfin_idx: int = int(float(seen.split("_")[1]))
-
-            if not finished[sent] and self.is_finished(
-                step, unfin_idx, max_len, len(finalized[sent]), beam_size
-            ):
-                finished[sent] = True
-                newly_finished.append(unfin_idx)
-
-        return newly_finished

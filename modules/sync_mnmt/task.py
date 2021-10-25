@@ -27,6 +27,7 @@ class Config:
     manner = 'tanh'
     tanh_weight = 0.1
     lang_idx = set()
+    infer_target = None
 
 
 @register_task("sync_mnmt")
@@ -52,6 +53,7 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
         if split == 'test':
             src_dataset, tgt_dataset = load_data(self.args.source_lang, self.args.target_lang)
             self.datasets[split] = MultiParallelDataset(src_dataset, [tgt_dataset], self.src_dict)
+            Config.infer_target = self.src_dict.index('__2<{}>__'.format(self.args.target_lang))
             for _, tgt in self.args.lang_pairs:
                 Config.lang_idx.add(self.src_dict.index('__2<{}>__'.format(tgt)))
             return
