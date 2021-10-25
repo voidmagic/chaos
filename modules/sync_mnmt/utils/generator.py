@@ -24,7 +24,7 @@ class SequenceGenerator(FairSequenceGenerator):
         src_tokens = net_input["src_tokens"]
 
         # bsz: total number of sentences in beam
-        # Note that src_tokens may have more than 2 dimenions (i.e. audio features)
+        # Note that src_tokens may have more than 2 dimensions (i.e. audio features)
         bsz, src_len = src_tokens.size()[:2]
         beam_size = self.beam_size
 
@@ -88,25 +88,18 @@ class SequenceGenerator(FairSequenceGenerator):
             lprobs, _ = self.model.forward_decoder(tokens[:, :step+1], encoder_outs, incremental_states)
 
             lprobs[lprobs != lprobs] = torch.tensor(-math.inf).to(lprobs)
-            lprobs[:, self.pad] = -math.inf  # never select pad
-            lprobs[:, self.unk] -= self.unk_penalty  # apply unk penalty
-
-            # lang x batch x beam, vocab
+            lprobs[tokens[:, 0] == target_lang, self.pad] = -math.inf  # never select pad for target language
             lprobs[tokens[:, 0] != target_lang, self.eos] = -math.inf  # never select eos for non-target languages
 
             # handle max length constraint
             if step >= max_len:
-                lprobs[:, : self.eos] = -math.inf
-                lprobs[:, self.eos + 1:] = -math.inf
-
-            scores = scores.type_as(lprobs)
+                lprobs[:, :self.eos] = -math.inf
+                lprobs[:, self.eos+1:] = -math.inf
 
             # Shape: (batch, cand_size)
             cand_scores, cand_indices, cand_beams = self.search.step(step, lprobs.view(bsz, -1, self.vocab_size), scores.view(bsz, beam_size, -1)[:, :, :step])
 
-            # cand_bbsz_idx contains beam indices for the top candidate
-            # hypotheses, with a range of values: [0, bsz*beam_size),
-            # and dimensions: [bsz, cand_size]
+            # cand_bbsz_idx contains beam indices for the top candidate hypotheses, with a range of values: [0, bsz*beam_size), and dimensions: [bsz, cand_size]
             cand_bbsz_idx = cand_beams.add(bbsz_offsets)
 
             # finalize hypotheses that end in eos. Shape of eos_mask: (batch size, beam size)
@@ -160,8 +153,6 @@ class SequenceGenerator(FairSequenceGenerator):
             # Set active_mask so that values > cand_size indicate eos hypos
             # and values < cand_size indicate candidate active hypos.
             # After, the min values per row are the top candidate active hypos
-
-            # Rewrite the operator since the element wise or is not supported in torchscript.
 
             eos_mask[:, :beam_size] = ~((~cands_to_ignore) & (~eos_mask[:, :beam_size]))
             active_mask = torch.add(eos_mask.type_as(cand_offsets) * cand_size, cand_offsets[: eos_mask.size(1)])

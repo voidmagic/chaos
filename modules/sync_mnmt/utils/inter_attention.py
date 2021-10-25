@@ -29,8 +29,12 @@ class InterAttention(MultiheadAttention):
             if 'self_prev_value' in saved_state:
                 prev_value = saved_state['self_prev_value']
                 v = torch.cat((prev_value, v), dim=0)
+            if 'prev_key_padding_mask' in saved_state:
+                prev_key_padding_mask = saved_state['prev_key_padding_mask']
+                key_padding_mask = torch.cat((prev_key_padding_mask, key_padding_mask), dim=1)
             saved_state['self_prev_key'] = k
             saved_state['self_prev_value'] = v
+            saved_state['prev_key_padding_mask'] = key_padding_mask
             incremental_state[self] = saved_state
 
         q = list(torch.chunk(q, num_lang, dim=1))
@@ -100,6 +104,7 @@ class InterAttention(MultiheadAttention):
         return self.out_proj(attn)
 
     def reorder_incremental_state(self, incremental_state, new_order):
-        state = incremental_state.get(self, {})
-        for key in state.keys():
-            state[key] = state[key].index_select(1, new_order)
+        saved_state = incremental_state.get(self, {})
+        saved_state['self_prev_key'] = saved_state['self_prev_key'].index_select(1, new_order)
+        saved_state['self_prev_value'] = saved_state['self_prev_value'].index_select(1, new_order)
+        saved_state['prev_key_padding_mask'] = saved_state['prev_key_padding_mask'].index_select(0, new_order)
