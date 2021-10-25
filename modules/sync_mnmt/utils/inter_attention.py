@@ -12,6 +12,7 @@ class InterAttention(MultiheadAttention):
         num_lang = Config.n_lang
         if key_padding_mask is None:
             key_padding_mask = torch.zeros_like(key[:, :, 0]).bool().transpose(0, 1)
+
         tgt_len, bsz, embed_dim = query.size()
         bsz = bsz // num_lang
 
@@ -19,10 +20,23 @@ class InterAttention(MultiheadAttention):
         k = self.k_proj(query)
         v = self.v_proj(query)
 
-        q = torch.chunk(q, num_lang, dim=1)
-        k = torch.chunk(k, num_lang, dim=1)
-        v = torch.chunk(v, num_lang, dim=1)
-        p = torch.chunk(key_padding_mask, num_lang, dim=0)
+        if incremental_state is not None:
+            # 如果有之前的state，拼接
+            saved_state = incremental_state.get(self, {})
+            if 'self_prev_key' in saved_state:
+                prev_key = saved_state['self_prev_key']
+                k = torch.cat((prev_key, k), dim=0)
+            if 'self_prev_value' in saved_state:
+                prev_value = saved_state['self_prev_value']
+                v = torch.cat((prev_value, v), dim=0)
+            saved_state['self_prev_key'] = k
+            saved_state['self_prev_value'] = v
+            incremental_state[self] = saved_state
+
+        q = list(torch.chunk(q, num_lang, dim=1))
+        k = list(torch.chunk(k, num_lang, dim=1))
+        v = list(torch.chunk(v, num_lang, dim=1))
+        p = list(torch.chunk(key_padding_mask, num_lang, dim=0))
 
         attention_all_lang = []
         q_tensor = torch.cat(q, dim=1)
@@ -54,8 +68,6 @@ class InterAttention(MultiheadAttention):
 
         return attention_all_lang, None
 
-
-
     def multi_head_attention(self, q, k, v, key_padding_mask, attn_mask):
         query_len, batch_size, embed_dim = q.size()
         tgt_len = k.size(0)
@@ -86,3 +98,8 @@ class InterAttention(MultiheadAttention):
         # attn: length x (batch x n_heads) x head_dim => length x batch x dim
         attn = attn.transpose(0, 1).contiguous().view(query_len, batch_size, embed_dim)
         return self.out_proj(attn)
+
+    def reorder_incremental_state(self, incremental_state, new_order):
+        state = incremental_state.get(self, {})
+        for key in state.keys():
+            state[key] = state[key].index_select(1, new_order)
