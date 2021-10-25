@@ -21,15 +21,17 @@ class Decoder(TransformerDecoder):
         return DecoderLayer(args, no_encoder_attn)
 
     def forward(self, prev_output_tokens, encoder_out: Optional[EncoderOut] = None, *args, **kwargs):
-        n_lang = Config.n_lang
-        encoder_out = EncoderOut(
-            encoder_out=encoder_out.encoder_out.repeat(1, n_lang, 1),
-            encoder_embedding=encoder_out.encoder_embedding.repeat(n_lang, 1, 1),
-            encoder_padding_mask=encoder_out.encoder_padding_mask.repeat(n_lang, 1),
-            encoder_states=[state.repeat(1, n_lang, 1) for state in encoder_out.encoder_states],
-            src_tokens=None,
-            src_lengths=None,
-        )
+        if prev_output_tokens.size(0) != encoder_out.encoder_out.size(1):
+            # 如果不一样，说明encoder_out没有重复n_lang次
+            n_lang = Config.n_lang
+            encoder_out = EncoderOut(
+                encoder_out=encoder_out.encoder_out.repeat(1, n_lang, 1),
+                encoder_embedding=encoder_out.encoder_embedding.repeat(n_lang, 1, 1),
+                encoder_padding_mask=encoder_out.encoder_padding_mask.repeat(n_lang, 1),
+                encoder_states=[state.repeat(1, n_lang, 1) for state in encoder_out.encoder_states] if encoder_out.encoder_states else None,
+                src_tokens=None,
+                src_lengths=None,
+            )
         return super(Decoder, self).forward(prev_output_tokens, encoder_out, *args, **kwargs)
 
 
