@@ -6,6 +6,8 @@ from fairseq.tasks import register_task
 
 from modules.google_mnmt.google_mnmt_task import GoogleMultilingualTranslationTask
 from .utils.dataset import MultiParallelDataset
+from .utils.generator import SequenceGenerator
+from fairseq import metrics, search, tokenizer, utils
 
 
 def dataset_equal(*datasets):
@@ -24,6 +26,7 @@ class Config:
     n_lang = None
     manner = 'tanh'
     tanh_weight = 0.1
+    lang_idx = set()
 
 
 @register_task("sync_mnmt")
@@ -35,8 +38,7 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
         def load_data(src, tgt):
             if indexed_dataset.dataset_exists(os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, src, tgt, src)), None):
                 prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split, src, tgt))
-            elif indexed_dataset.dataset_exists(
-                    os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, tgt, src, src)), None):
+            elif indexed_dataset.dataset_exists(os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, tgt, src, src)), None):
                 prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split, tgt, src))
             else:
                 raise FileNotFoundError(os.path.join(self.args.data, '{}.{}-{}.*'.format(split, tgt, src)))
@@ -45,6 +47,14 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
             tgt_raw_dataset = data_utils.load_indexed_dataset(prefix + tgt, self.tgt_dict)
             tgt_prepend_dataset = PrependTokenDataset(tgt_raw_dataset, self.src_dict.index('__2<{}>__'.format(tgt)))
             return src_raw_dataset, tgt_prepend_dataset
+
+
+        if split == 'test':
+            src_dataset, tgt_dataset = load_data(self.args.source_lang, self.args.target_lang)
+            self.datasets[split] = MultiParallelDataset(src_dataset, [tgt_dataset], self.src_dict)
+            for _, tgt in self.args.lang_pairs:
+                Config.lang_idx.add(self.src_dict.index('__2<{}>__'.format(tgt)))
+            return
 
         src_datasets = []
         tgt_datasets = []
@@ -56,4 +66,5 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
         assert dataset_equal(*src_datasets)
         self.datasets[split] = MultiParallelDataset(src_datasets[0], tgt_datasets, self.src_dict)
 
-
+    def build_generator(self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None):
+        return super(SyncTranslationTask, self).build_generator(models, args, SequenceGenerator, extra_gen_cls_kwargs)

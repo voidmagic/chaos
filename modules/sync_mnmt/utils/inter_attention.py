@@ -10,7 +10,8 @@ from modules.sync_mnmt.task import Config
 class InterAttention(MultiheadAttention):
     def forward(self, query, key, value, key_padding_mask=None, incremental_state=None, attn_mask=None, *args, **kwargs):
         num_lang = Config.n_lang
-
+        if key_padding_mask is None:
+            key_padding_mask = torch.zeros_like(key[:, :, 0]).bool().transpose(0, 1)
         tgt_len, bsz, embed_dim = query.size()
         bsz = bsz // num_lang
 
@@ -69,8 +70,9 @@ class InterAttention(MultiheadAttention):
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))  # -1 x tgt_len x tgt_len
 
-        attn_mask = attn_mask.unsqueeze(0)
-        attn_weights += attn_mask
+        if attn_mask is not None:
+            attn_mask = attn_mask.unsqueeze(0)
+            attn_weights += attn_mask
 
         # don't attend to padding symbols
         attn_weights = attn_weights.view(batch_size, self.num_heads, query_len, tgt_len)
