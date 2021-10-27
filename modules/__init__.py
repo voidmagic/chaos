@@ -15,6 +15,9 @@ import logging
 from fairseq import checkpoint_utils
 
 import torch.multiprocessing
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
 torch.multiprocessing.set_sharing_strategy('file_system')
 
 logger = logging.getLogger(__name__)
