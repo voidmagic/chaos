@@ -73,23 +73,15 @@ class SequenceGenerator(FairSequenceGenerator):
         bbsz_offsets = (torch.arange(0, bsz) * beam_size).unsqueeze(1).type_as(tokens)
         cand_offsets = torch.arange(0, cand_size).type_as(tokens)
 
-        reorder_state: Optional[Tensor] = None
-        batch_idxs: Optional[Tensor] = None
-
         for step in range(max_len + 1):  # one extra step for EOS marker
-            if reorder_state is not None:
-                if batch_idxs is not None:
-                    # update beam indices to take into account removed sentences
-                    corr = batch_idxs - torch.arange(batch_idxs.numel()).type_as(batch_idxs)
-                    reorder_state.view(-1, beam_size).add_(corr.unsqueeze(-1) * beam_size)
-                self.model.reorder_incremental_state(incremental_states, reorder_state)
-                encoder_outs = self.model.reorder_encoder_out(encoder_outs, reorder_state)
+            if step > 0:
+                tokens[tokens[:, step-1] == 1, step] = 1
 
             lprobs, _ = self.model.forward_decoder(tokens[:, :step+1], encoder_outs, incremental_states)
-
             lprobs[lprobs != lprobs] = torch.tensor(-math.inf).to(lprobs)
-            lprobs[tokens[:, 0] == target_lang, self.pad] = -math.inf  # never select pad for target language
-            lprobs[tokens[:, 0] != target_lang, self.eos] = -math.inf  # never select eos for non-target languages
+            lprobs[tokens[:, 0] == target_lang, self.pad] = -math.inf   # 目标语言不能选pad
+            lprobs[tokens[:, 0] != target_lang, self.pad] = lprobs[tokens[:, 0] != target_lang, self.eos]  # 非目标语言把eos换为pad，这样写的话，当eos概率高被选中，那么pad就会被选中，若eos概率低，那么pad就不会被选中。
+            lprobs[tokens[:, 0] != target_lang, self.eos] = -math.inf  # 然后把非目标语言的eos设为-inf，不会选中。
 
             # handle max length constraint
             if step >= max_len:
@@ -187,14 +179,13 @@ class SequenceGenerator(FairSequenceGenerator):
 
             scores.view(bsz, beam_size, -1)[:, :, step] = torch.gather(cand_scores, dim=1, index=active_hypos)
 
-            # Update constraints based on which candidates were selected for the next beam
-            self.search.update_constraints(active_hypos)
-
-            # reorder incremental state in decoder
-            reorder_state = active_bbsz_idx
-
-        # sort by score descending
-        assert len(finalized) % n_langs == 0
+            if active_bbsz_idx is not None:
+                if batch_idxs is not None:
+                    # update beam indices to take into account removed sentences
+                    corr = batch_idxs - torch.arange(batch_idxs.numel()).type_as(batch_idxs)
+                    active_bbsz_idx.view(-1, beam_size).add_(corr.unsqueeze(-1) * beam_size)
+                self.model.reorder_incremental_state(incremental_states, active_bbsz_idx)
+                encoder_outs = self.model.reorder_encoder_out(encoder_outs, active_bbsz_idx)
 
         for sent in range(len(finalized) // n_langs):
             scores = torch.tensor([float(elem["score"].item()) for elem in finalized[sent]])
