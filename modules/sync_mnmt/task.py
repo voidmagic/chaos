@@ -1,25 +1,11 @@
 import os
 
-import torch
-from fairseq.data import indexed_dataset, data_utils, PrependTokenDataset, ConcatDataset, LanguagePairDataset
+from fairseq.data import indexed_dataset, data_utils, PrependTokenDataset
 from fairseq.tasks import register_task
 
 from modules.google_mnmt.google_mnmt_task import GoogleMultilingualTranslationTask
 from .utils.dataset import MultiParallelDataset
 from .utils.generator import SequenceGenerator
-from fairseq import metrics, search, tokenizer, utils
-
-
-def dataset_equal(*datasets):
-    if len(set([len(d) for d in datasets])) > 1:
-        return False
-
-    first = datasets[0]
-    for i in range(len(first)):
-        for dataset in datasets:
-            if not torch.equal(first[i], dataset[i]):
-                return False
-    return True
 
 
 class Config:
@@ -33,8 +19,17 @@ class Config:
 @register_task("sync_mnmt")
 class SyncTranslationTask(GoogleMultilingualTranslationTask):
 
+    @staticmethod
+    def add_args(parser):
+        GoogleMultilingualTranslationTask.add_args(parser)
+        parser.add_argument('--manner', default='tanh', type=str)
+        parser.add_argument('--tanh-weight', default=0.1, type=float)
+
+
     def load_dataset(self, split, **kwargs):
         Config.n_lang = len(self.args.lang_pairs)
+        Config.manner = self.args.manner
+        Config.tanh_weight = self.args.tanh_weight
 
         def load_data(src, tgt):
             if indexed_dataset.dataset_exists(os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, src, tgt, src)), None):
@@ -65,7 +60,6 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
             src_datasets.append(src_dataset)
             tgt_datasets.append(tgt_dataset)
 
-        assert dataset_equal(*src_datasets)
         self.datasets[split] = MultiParallelDataset(src_datasets[0], tgt_datasets, self.src_dict)
 
     def build_generator(self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None):
