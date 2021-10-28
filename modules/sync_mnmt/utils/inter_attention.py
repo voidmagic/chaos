@@ -1,6 +1,7 @@
+import math
 
 import torch
-from fairseq import utils
+import torch.nn as nn
 from fairseq.modules import MultiheadAttention
 import torch.nn.functional as F
 
@@ -8,6 +9,16 @@ from modules.sync_mnmt.task import Config
 
 
 class InterAttention(MultiheadAttention):
+    def __init__(self, embed_dim, *args, **kwargs):
+        super(InterAttention, self).__init__(embed_dim, *args, **kwargs)
+        self.cla_linear_q = nn.Linear(embed_dim, embed_dim, bias=True)
+        self.cla_linear_k = nn.Linear(embed_dim, embed_dim, bias=True)
+        self.cla_linear_v = nn.Linear(embed_dim, embed_dim, bias=True)
+
+        nn.init.xavier_uniform_(self.cla_linear_q.weight, gain=1 / math.sqrt(2))
+        nn.init.xavier_uniform_(self.cla_linear_k.weight, gain=1 / math.sqrt(2))
+        nn.init.xavier_uniform_(self.cla_linear_v.weight, gain=1 / math.sqrt(2))
+
     def forward(self, query, key, value, key_padding_mask=None, incremental_state=None, attn_mask=None, *args, **kwargs):
         num_lang = Config.n_lang
         if key_padding_mask is None:
@@ -37,40 +48,32 @@ class InterAttention(MultiheadAttention):
             saved_state['prev_key_padding_mask'] = key_padding_mask
             incremental_state[self] = saved_state
 
-        q = list(torch.chunk(q, num_lang, dim=1))
         k = list(torch.chunk(k, num_lang, dim=1))
         v = list(torch.chunk(v, num_lang, dim=1))
         p = list(torch.chunk(key_padding_mask, num_lang, dim=0))
 
-        attention_all_lang = []
-        q_tensor = torch.cat(q, dim=1)
-        for i in range(num_lang):
-            k_tensor = torch.cat([k[(j + i) % len(k)] for j in range(len(k))], dim=1)
-            v_tensor = torch.cat([v[(j + i) % len(v)] for j in range(len(v))], dim=1)
-            p_tensor = torch.cat([p[(j + i) % len(p)] for j in range(len(p))], dim=0)
+        attention_list = []
+        for i in range(num_lang):  # 拼接后
+            k_i = torch.cat([k[(j + i) % len(k)] for j in range(len(k))], dim=1)
+            v_i = torch.cat([v[(j + i) % len(v)] for j in range(len(v))], dim=1)
+            p_i = torch.cat([p[(j + i) % len(p)] for j in range(len(p))], dim=0)
+            attention_list.append(self.multi_head_attention(q, k_i, v_i, p_i, attn_mask))  # length x lang*batch x h, lang表示第k个语言到第k+i个语言的注意力
 
-            # length x lang*batch x h
-            attn = self.multi_head_attention(q_tensor, k_tensor, v_tensor, p_tensor, attn_mask)
-            attention_all_lang.append(attn)
-
-        if Config.manner == "gate":  # use gate for all languages
-            lang_self_attention = attention_all_lang[0].view(-1, embed_dim).unsqueeze(1)
-            lang_attention_q = self.cla_linear_q(lang_self_attention) * self.scaling  # lang query
-
-            attention_all_lang = torch.stack(attention_all_lang, dim=0).view(num_lang, -1, embed_dim)
-            attention_all_lang = attention_all_lang.transpose(0, 1)  # length*batch*lang x lang x h
-            lang_attention_k = self.cla_linear_k(attention_all_lang)  # lang key
-            lang_attention_v = self.cla_linear_v(attention_all_lang)  # lang value
-
-            weight = torch.bmm(lang_attention_q, lang_attention_k.transpose(1, 2))
-            weight = F.softmax(weight.float(), dim=-1).type_as(weight)
-            attention_all_lang = torch.bmm(weight, lang_attention_v)
-
-            attention_all_lang = attention_all_lang.view(tgt_len, num_lang * bsz, embed_dim)
+        if Config.manner == "none":
+            output = attention_list[0]
+        elif Config.manner == "cla":  # use gate for all languages
+            cla_q = self.cla_linear_q(attention_list[0].view(-1, embed_dim).unsqueeze(1)) * self.scaling  # length*lang*batch x 1 x h
+            cla_kv = torch.stack(attention_list, dim=0).view(num_lang, -1, embed_dim).transpose(0, 1)  # length*lang*batch x lang x h
+            cla_k = self.cla_linear_k(cla_kv)  # length*lang*batch x lang x h
+            cla_v = self.cla_linear_v(cla_kv)  # length*lang*batch x lang x h
+            cla_weight = torch.bmm(cla_q, cla_k.transpose(1, 2))  # length*lang*batch x 1 x lang
+            cla_weight = F.softmax(cla_weight.float(), dim=-1).type_as(cla_weight)  # length*lang*batch x 1 x lang
+            output = torch.bmm(cla_weight, cla_v).view(tgt_len, num_lang * bsz, embed_dim)  # length*lang*batch x 1 x h -> length x lang*batch x h
         elif Config.manner == "tanh":
-            attention_all_lang = torch.tanh(sum(attention_all_lang[1:])) * Config.tanh_weight + attention_all_lang[0]
-
-        return attention_all_lang, None
+            output = torch.tanh(sum(attention_list[1:])) * Config.tanh_weight + attention_list[0]
+        else:
+            raise Exception()
+        return output, None
 
     def multi_head_attention(self, q, k, v, key_padding_mask, attn_mask):
         query_len, batch_size, embed_dim = q.size()
