@@ -62,10 +62,14 @@ class InterAttention(MultiheadAttention):
         if Config.manner == "none":
             output = attention_list[0]
         elif Config.manner == "gate":  # use gate for all languages
-            cla_q = self.cla_linear_q(attention_list[0].view(-1, embed_dim).unsqueeze(1)) * self.scaling  # length*lang*batch x 1 x h
             cla_kv = torch.stack(attention_list, dim=0).view(num_lang, -1, embed_dim).transpose(0, 1)  # length*lang*batch x lang x h
-            cla_k = self.cla_linear_k(cla_kv)  # length*lang*batch x lang x h
-            cla_v = self.cla_linear_v(cla_kv)  # length*lang*batch x lang x h
+            if Config.non_proj:
+                cla_q = attention_list[0].view(-1, embed_dim).unsqueeze(1) * self.scaling  # length*lang*batch x 1 x h
+                cla_k, cla_v = cla_kv, cla_kv  # length*lang*batch x lang x h
+            else:
+                cla_q = self.cla_linear_q(attention_list[0].view(-1, embed_dim).unsqueeze(1)) * self.scaling  # length*lang*batch x 1 x h
+                cla_k, cla_v = self.cla_linear_k(cla_kv), self.cla_linear_v(cla_kv)  # length*lang*batch x lang x h
+
             cla_weight = torch.bmm(cla_q, cla_k.transpose(1, 2))  # length*lang*batch x 1 x lang
             cla_weight = F.softmax(cla_weight.float(), dim=-1).type_as(cla_weight)  # length*lang*batch x 1 x lang
             output = torch.bmm(cla_weight, cla_v).view(tgt_len, num_lang * bsz, embed_dim)  # length*lang*batch x 1 x h -> length x lang*batch x h

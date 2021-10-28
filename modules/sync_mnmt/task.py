@@ -14,6 +14,7 @@ class Config:
     tanh_weight = 0.1
     lang_idx = set()
     infer_target = None
+    non_proj = False
 
 
 @register_task("sync_mnmt")
@@ -24,12 +25,14 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
         GoogleMultilingualTranslationTask.add_args(parser)
         parser.add_argument('--manner', default='tanh', type=str)
         parser.add_argument('--tanh-weight', default=0.1, type=float)
+        parser.add_argument('--non-proj', action='store_true')
 
 
     def load_dataset(self, split, **kwargs):
         Config.n_lang = len(self.args.lang_pairs)
         Config.manner = self.args.manner
         Config.tanh_weight = self.args.tanh_weight
+        Config.non_proj = self.args.non_proj
 
         def load_data(src, tgt):
             if indexed_dataset.dataset_exists(os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, src, tgt, src)), None):
