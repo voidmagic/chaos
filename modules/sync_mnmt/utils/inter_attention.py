@@ -11,13 +11,14 @@ from modules.sync_mnmt.task import Config
 class InterAttention(MultiheadAttention):
     def __init__(self, embed_dim, *args, **kwargs):
         super(InterAttention, self).__init__(embed_dim, *args, **kwargs)
-        self.cla_linear_q = nn.Linear(embed_dim, embed_dim, bias=True)
-        self.cla_linear_k = nn.Linear(embed_dim, embed_dim, bias=True)
-        self.cla_linear_v = nn.Linear(embed_dim, embed_dim, bias=True)
+        if Config.manner == 'gate' and not Config.non_proj:
+            self.cla_linear_q = nn.Linear(embed_dim, embed_dim, bias=True)
+            self.cla_linear_k = nn.Linear(embed_dim, embed_dim, bias=True)
+            self.cla_linear_v = nn.Linear(embed_dim, embed_dim, bias=True)
 
-        nn.init.xavier_uniform_(self.cla_linear_q.weight, gain=1 / math.sqrt(2))
-        nn.init.xavier_uniform_(self.cla_linear_k.weight, gain=1 / math.sqrt(2))
-        nn.init.xavier_uniform_(self.cla_linear_v.weight, gain=1 / math.sqrt(2))
+            nn.init.xavier_uniform_(self.cla_linear_q.weight, gain=1 / math.sqrt(2))
+            nn.init.xavier_uniform_(self.cla_linear_k.weight, gain=1 / math.sqrt(2))
+            nn.init.xavier_uniform_(self.cla_linear_v.weight, gain=1 / math.sqrt(2))
 
     def forward(self, query, key, value, key_padding_mask=None, incremental_state=None, attn_mask=None, *args, **kwargs):
         num_lang = Config.n_lang
