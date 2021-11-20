@@ -1,4 +1,3 @@
-import multiprocessing
 import argparse
 
 
@@ -32,8 +31,12 @@ def read_files(prefix, lang_pairs):
         (f"{prefix}.{source}-{target}.{target}", f"{prefix}.{source}-{target}.{source}") for source, target in lang_pairs
     ]
 
-    with multiprocessing.Pool(len(filenames)) as pool:
-        sentences, source_sets = zip(*pool.map(read_file, filenames))
+    sentences, source_sets = [], []
+    for filename in filenames:
+        sentence, source_set = read_file(filename)
+        sentences.append(sentence)
+        source_sets.append(source_set)
+
     unique_source = source_sets[0].intersection(*source_sets)
     print(f'Find multilingual parallel {len(unique_source)}')
     return [
@@ -56,8 +59,8 @@ def write_files(sentences, output, lang_pairs):
     filenames = [
         (f"{output}.{source}-{target}.{source}", f"{output}.{source}-{target}.{target}") for source, target in lang_pairs
     ]
-    with multiprocessing.Pool(len(filenames)) as pool:
-        pool.map(write_file, zip(filenames, sentences))
+    for filename, sentence in zip(filenames, sentences):
+        write_file((filename, sentence))
 
 
 def main():
