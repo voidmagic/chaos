@@ -27,13 +27,16 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
         parser.add_argument('--tanh-weight', default=0.1, type=float)
         parser.add_argument('--non-proj', action='store_true')
 
+    @classmethod
+    def setup_task(cls, args, **kwargs):
+        task = super(SyncTranslationTask, cls).setup_task(args)
+        Config.n_lang = len(args.lang_pairs)
+        Config.manner = args.manner
+        Config.tanh_weight = args.tanh_weight
+        Config.non_proj = args.non_proj
+        return task
 
     def load_dataset(self, split, **kwargs):
-        Config.n_lang = len(self.args.lang_pairs)
-        Config.manner = self.args.manner
-        Config.tanh_weight = self.args.tanh_weight
-        Config.non_proj = self.args.non_proj
-
         def load_data(src, tgt):
             if indexed_dataset.dataset_exists(os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, src, tgt, src)), None):
                 prefix = os.path.join(self.args.data, '{}.{}-{}.'.format(split, src, tgt))
@@ -48,7 +51,7 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
             return src_raw_dataset, tgt_prepend_dataset
 
 
-        if split == 'test':
+        if split == 'test' and self.args.source_lang != self.args.target_lang:
             src_dataset, tgt_dataset = load_data(self.args.source_lang, self.args.target_lang)
             self.datasets[split] = MultiParallelDataset(src_dataset, [tgt_dataset], self.src_dict)
             Config.infer_target = self.src_dict.index('__2<{}>__'.format(self.args.target_lang))
