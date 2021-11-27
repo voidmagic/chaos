@@ -23,6 +23,7 @@ class SyncMultilingualTransformer(TransformerModel):
 
 class Decoder(TransformerDecoder):
     def build_decoder_layer(self, args, no_encoder_attn=False):
+        Config.current_layer += 1
         return DecoderLayer(args)
 
 

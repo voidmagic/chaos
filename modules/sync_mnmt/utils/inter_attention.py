@@ -1,4 +1,7 @@
 import math
+import os.path
+import pathlib
+import uuid
 
 import torch
 import torch.nn as nn
@@ -11,6 +14,7 @@ from modules.sync_mnmt.task import Config
 class InterAttention(MultiheadAttention):
     def __init__(self, embed_dim, *args, **kwargs):
         super(InterAttention, self).__init__(embed_dim, *args, **kwargs)
+        self.current_layer = Config.current_layer
         if Config.manner == 'gate' and not Config.non_proj:
             self.cla_linear_q = nn.Linear(embed_dim, embed_dim, bias=True)
             self.cla_linear_k = nn.Linear(embed_dim, embed_dim, bias=True)
@@ -73,6 +77,7 @@ class InterAttention(MultiheadAttention):
 
             cla_weight = torch.bmm(cla_q, cla_k.transpose(1, 2))  # length*lang*batch x 1 x lang
             cla_weight = F.softmax(cla_weight.float(), dim=-1).type_as(cla_weight)  # length*lang*batch x 1 x lang
+            self.if_record_weight(cla_weight.view(-1, num_lang, bsz, num_lang))
             output = torch.bmm(cla_weight, cla_v).view(tgt_len, num_lang * bsz, embed_dim)  # length*lang*batch x 1 x h -> length x lang*batch x h
         elif Config.manner == "tanh":
             output = torch.tanh(sum(attention_list[1:])) * Config.tanh_weight + attention_list[0]
@@ -116,3 +121,15 @@ class InterAttention(MultiheadAttention):
         saved_state['self_prev_key'] = saved_state['self_prev_key'].index_select(1, new_order)
         saved_state['self_prev_value'] = saved_state['self_prev_value'].index_select(1, new_order)
         saved_state['prev_key_padding_mask'] = saved_state['prev_key_padding_mask'].index_select(0, new_order)
+
+    def if_record_weight(self, weight):
+        if Config.weight_path is None:  # no path specified, do not record
+            return
+        # weight: length x n_lang x batch x n_lang
+        weight = weight.mean(dim=2)  # length x n_lang x n_lang
+        n_lang = weight.size(-1)
+        for n in range(n_lang):
+            weight[:, n+1:] = weight[:, n+1:].roll(1, 2)
+        weight = weight.cpu()
+        pathlib.Path(Config.weight_path).mkdir(exist_ok=True)
+        torch.save(weight, os.path.join(Config.weight_path, '{}.{}.pt'.format(self.current_layer, uuid.uuid4())))

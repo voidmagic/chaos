@@ -15,6 +15,9 @@ class Config:
     lang_idx = set()
     infer_target = None
     non_proj = False
+    weight_record = []
+    weight_path = None
+    current_layer = -1
 
 
 @register_task("sync_mnmt")
@@ -26,6 +29,7 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
         parser.add_argument('--manner', default='tanh', type=str)
         parser.add_argument('--tanh-weight', default=0.1, type=float)
         parser.add_argument('--non-proj', action='store_true')
+        parser.add_argument('--weight-path', default=None, type=str)
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -34,6 +38,7 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
         Config.manner = args.manner
         Config.tanh_weight = args.tanh_weight
         Config.non_proj = args.non_proj
+        Config.weight_path = args.weight_path
         return task
 
     def load_dataset(self, split, **kwargs):
@@ -70,3 +75,4 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
 
     def build_generator(self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None):
         return super(SyncTranslationTask, self).build_generator(models, args, SequenceGenerator, extra_gen_cls_kwargs)
+
