@@ -18,6 +18,7 @@ class Config:
     weight_record = []
     weight_path = None
     current_layer = -1
+    fusion_last = False
 
 
 @register_task("sync_mnmt")
@@ -30,6 +31,7 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
         parser.add_argument('--tanh-weight', default=0.1, type=float)
         parser.add_argument('--non-proj', action='store_true')
         parser.add_argument('--weight-path', default=None, type=str)
+        parser.add_argument('--fusion-last', action='store_true')
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -39,6 +41,7 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
         Config.tanh_weight = args.tanh_weight
         Config.non_proj = args.non_proj
         Config.weight_path = args.weight_path
+        Config.fusion_last = args.fusion_last
         return task
 
     def load_dataset(self, split, **kwargs):

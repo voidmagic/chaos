@@ -24,7 +24,10 @@ class SyncMultilingualTransformer(TransformerModel):
 class Decoder(TransformerDecoder):
     def build_decoder_layer(self, args, no_encoder_attn=False):
         Config.current_layer += 1
-        return DecoderLayer(args)
+        if Config.fusion_last and Config.current_layer != args.decoder_layers - 1:
+            return super(Decoder, self).build_decoder_layer(args, no_encoder_attn)
+        else:
+            return DecoderLayer(args)
 
 
 class DecoderLayer(TransformerDecoderLayer):
