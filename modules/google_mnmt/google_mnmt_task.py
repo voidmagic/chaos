@@ -47,10 +47,11 @@ class GoogleMultilingualTranslationTask(TranslationTask):
         args.lang_pairs = args.lang_pairs.split(',')
         args.lang_pairs = [lang_pair.split('-') for lang_pair in args.lang_pairs]
         if args.source_lang is None or args.target_lang is None:
-            args.source_lang = args.target_lang = args.lang_pairs[0][0]
+            args.source_lang, args.target_lang = args.lang_pairs[0]
         task = super(GoogleMultilingualTranslationTask, cls).setup_task(args)
         langs = list(set([lang for pair in args.lang_pairs for lang in pair]))
         for lang_token in sorted(['__2<{}>__'.format(lang) for lang in langs]):
             task.src_dict.add_symbol(lang_token)
             task.tgt_dict.add_symbol(lang_token)
+        args.source_lang = args.target_lang  # flag
         return task
