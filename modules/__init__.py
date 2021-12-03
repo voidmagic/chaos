@@ -10,6 +10,7 @@ from . import sample_mnmt
 from . import temporal_attention
 from . import transfer
 from . import mtl_optim
+from . import sample_epoch
 
 
 import os
