@@ -70,7 +70,7 @@ def make_data_frame(data):
 def draw_overall(weight, name):
     fig = plt.figure()
     weight = make_data_frame(weight)
-    plot = sns.heatmap(weight, cmap='GnBu', vmax=1)
+    plot = sns.heatmap(weight, cmap='GnBu', vmax=0.15)
     plot.set_xlabel('Auxiliary Languages')
     plot.set_ylabel('Language of Interests')
     plot.xaxis.set_ticks_position('top')
@@ -88,10 +88,10 @@ def draw_layer_weight(weights):
     plt.show()
 
 
-draw_overall(overall_weight, 'data/figure-7-overall-weight.pdf')
+# draw_overall(overall_weight, 'data/figure-7-overall-weight.pdf')
+#
+# for i, weight in enumerate(layer_weight):
+#     draw_overall(weight, f'data/figure-8-layer{i}-weight.pdf')
 
-for i, weight in enumerate(layer_weight):
-    draw_overall(weight, f'data/figure-8-layer{i}-weight.pdf')
-
-
-# draw_layer_weight(layer_weight)
+# draw_overall(overall_weight, '0')
+draw_overall(layer_weight[-1], 'data/figure-9-lang-weight.pdf')
