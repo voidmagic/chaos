@@ -45,7 +45,7 @@ class MultilingualSampledDataset(RoundRobinZipDatasets):
 
     def filter_indices_by_size(self, indices, max_sizes):
         filtered_ignored = OrderedDict([
-            (key, dataset.filter_indices_by_size(indices[key], max_sizes[key]))
+            (key, dataset.filter_indices_by_size(indices[key], max_sizes if isinstance(max_sizes, tuple) else max_sizes[key]))
             for key, dataset in self.datasets.items()
         ])
         filtered = OrderedDict([(key, value[0]) for key, value in filtered_ignored.items()])
