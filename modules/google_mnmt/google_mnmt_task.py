@@ -10,6 +10,7 @@ class GoogleMultilingualTranslationTask(TranslationTask):
     def add_args(parser):
         TranslationTask.add_args(parser)
         parser.add_argument('--lang-pairs', default=None, metavar='PAIRS', help='comma-separated list of language pairs (in training order): en-de,en-fr,de-fr')
+        parser.add_argument('--langs', default=None, metavar='PAIRS', help='comma-separated list of all languages')
 
     def load_dataset(self, split, **kwargs):
 
@@ -49,7 +50,10 @@ class GoogleMultilingualTranslationTask(TranslationTask):
         if args.source_lang is None or args.target_lang is None:
             args.source_lang, args.target_lang = args.lang_pairs[0]
         task = super(GoogleMultilingualTranslationTask, cls).setup_task(args)
-        langs = list(set([lang for pair in args.lang_pairs for lang in pair]))
+        if args.langs is None:
+            langs = list(set([lang for pair in args.lang_pairs for lang in pair]))
+        else:
+            langs = args.langs.split(',')
         for lang_token in sorted(['__2<{}>__'.format(lang) for lang in langs]):
             task.src_dict.add_symbol(lang_token)
             task.tgt_dict.add_symbol(lang_token)
