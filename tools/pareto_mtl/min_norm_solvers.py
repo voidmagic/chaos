@@ -12,6 +12,7 @@ class MinNormSolver:
     MAX_ITER = 250
     STOP_CRIT = 1e-5
 
+    @staticmethod
     def _min_norm_element_from2(v1v1, v1v2, v2v2):
         """
         Analytical solution for min_{c} |cx_1 + (1-c)x_2|_2^2
@@ -35,6 +36,7 @@ class MinNormSolver:
         cost = v2v2 + gamma*(v1v2 - v2v2)
         return gamma, cost
 
+    @staticmethod
     def _min_norm_2d(vecs, dps):
         """
         Find the minimum norm solution as combination of two points
@@ -63,6 +65,7 @@ class MinNormSolver:
                     sol = [(i,j),c,d]
         return sol, dps
 
+    @staticmethod
     def _projection2simplex(y):
         """
         Given y, it solves argmin_z |y-z|_2 st \sum z = 1 , 1 >= z_i >= 0 for all i
@@ -78,7 +81,8 @@ class MinNormSolver:
                 tmax_f = tmax
                 break
         return np.maximum(y - tmax_f, np.zeros(y.shape))
-    
+
+    @staticmethod
     def _next_point(cur_val, grad, n):
         proj_grad = grad - ( np.sum(grad) / n )
         tm1 = -1.0*cur_val[proj_grad<0]/proj_grad[proj_grad<0]
@@ -95,6 +99,7 @@ class MinNormSolver:
         next_point = MinNormSolver._projection2simplex(next_point)
         return next_point
 
+    @staticmethod
     def find_min_norm_element(vecs):
         """
         Given a list of vectors (vecs), this method finds the minimum norm element in the convex hull
