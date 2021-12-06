@@ -53,6 +53,5 @@ class SampledMultilingualSingleModelTask(GoogleMultilingualTranslationTask):
         for key, value in sample.items():
             if value:
                 return super(SampledMultilingualSingleModelTask, self).train_step(
-                    value, model, criterion, optimizer, update_num, ignore_grad
-                )
+                    value, model, criterion, optimizer, update_num, ignore_grad)
         return None
