@@ -147,6 +147,7 @@ class MinNormSolver:
                 return sol_vec, nd
             sol_vec = new_sol_vec
 
+    @staticmethod
     def find_min_norm_element_FW(vecs):
         """
         Given a list of vectors (vecs), this method finds the minimum norm element in the convex hull
@@ -208,3 +209,49 @@ def gradient_normalizers(grads, losses, normalization_type):
     else:
         print('ERROR: Invalid Normalization Type')
     return gn
+
+
+def get_d_paretomtl_init(grads, value: torch.Tensor, weights, i):
+    flag = False
+    nobj = value.shape
+    w = weights - weights[i]
+    gx = torch.matmul(w, value / torch.norm(value))
+    idx = torch.gt(gx, 0)
+    # calculate the descent direction
+    if torch.sum(idx) <= 0:
+        flag = True
+        return flag, torch.zeros(nobj)
+
+    if torch.sum(idx) == 1:
+        sol = torch.ones(1).cuda().float()
+    else:
+        vec = torch.matmul(w[idx], grads)
+        sol, nd = MinNormSolver.find_min_norm_element([[vec[t]] for t in range(len(vec))])
+
+    weight0 = torch.sum(torch.stack([sol[j] * w[idx][j, 0] for j in torch.arange(0, torch.sum(idx))]))
+    weight1 = torch.sum(torch.stack([sol[j] * w[idx][j, 1] for j in torch.arange(0, torch.sum(idx))]))
+    weight = torch.stack([weight0, weight1])
+
+    return flag, weight
+
+
+def get_d_paretomtl(grads, value: torch.Tensor, weights, i):
+    # check active constraints
+    w = weights - weights[i]
+
+    gx = torch.matmul(w, value / torch.norm(value))
+    idx = torch.gt(gx, 0)
+
+    # calculate the descent direction
+    if torch.sum(idx) <= 0:
+        sol, nd = MinNormSolver.find_min_norm_element([[grads[t]] for t in range(len(grads))])
+        return torch.tensor(sol).cuda().float()
+
+    vec = torch.cat((grads, torch.matmul(w[idx], grads)))
+    sol, nd = MinNormSolver.find_min_norm_element([[vec[t]] for t in range(len(vec))])
+
+    weight0 = sol[0] + torch.sum(torch.stack([sol[j] * w[idx][j - 2, 0] for j in torch.arange(2, 2 + torch.sum(idx))]))
+    weight1 = sol[1] + torch.sum(torch.stack([sol[j] * w[idx][j - 2, 1] for j in torch.arange(2, 2 + torch.sum(idx))]))
+    weight = torch.stack([weight0, weight1])
+
+    return weight

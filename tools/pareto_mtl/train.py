@@ -7,55 +7,9 @@ import torch.utils.data
 
 from model_lenet import RegressionModel, RegressionTrain
 
-from min_norm_solvers import MinNormSolver
+from min_norm_solvers import get_d_paretomtl_init, get_d_paretomtl
 
 from utils import load_dataset, circle_points
-
-
-def get_d_paretomtl_init(grads, value: torch.Tensor, weights, i):
-    flag = False
-    nobj = value.shape
-    w = weights - weights[i]
-    gx =  torch.matmul(w, value / torch.norm(value))
-    idx = torch.gt(gx, 0)
-    # calculate the descent direction
-    if torch.sum(idx) <= 0:
-        flag = True
-        return flag, torch.zeros(nobj)
-
-    if torch.sum(idx) == 1:
-        sol = torch.ones(1).cuda().float()
-    else:
-        vec =  torch.matmul(w[idx],grads)
-        sol, nd = MinNormSolver.find_min_norm_element([[vec[t]] for t in range(len(vec))])
-
-    weight0 =  torch.sum(torch.stack([sol[j] * w[idx][j ,0] for j in torch.arange(0, torch.sum(idx))]))
-    weight1 =  torch.sum(torch.stack([sol[j] * w[idx][j ,1] for j in torch.arange(0, torch.sum(idx))]))
-    weight = torch.stack([weight0, weight1])
-   
-    return flag, weight
-
-
-def get_d_paretomtl(grads, value: torch.Tensor, weights, i):
-    # check active constraints
-    w = weights - weights[i]
-    
-    gx =  torch.matmul(w, value / torch.norm(value))
-    idx = torch.gt(gx, 0)
-
-    # calculate the descent direction
-    if torch.sum(idx) <= 0:
-        sol, nd = MinNormSolver.find_min_norm_element([[grads[t]] for t in range(len(grads))])
-        return torch.tensor(sol).cuda().float()
-
-    vec =  torch.cat((grads, torch.matmul(w[idx],grads)))
-    sol, nd = MinNormSolver.find_min_norm_element([[vec[t]] for t in range(len(vec))])
-
-    weight0 =  sol[0] + torch.sum(torch.stack([sol[j] * w[idx][j - 2 ,0] for j in torch.arange(2, 2 + torch.sum(idx))]))
-    weight1 =  sol[1] + torch.sum(torch.stack([sol[j] * w[idx][j - 2 ,1] for j in torch.arange(2, 2 + torch.sum(idx))]))
-    weight = torch.stack([weight0,weight1])
-    
-    return weight
 
 
 def find_init_solution(model, optimizer, train_loader, n_tasks, ref_vec, pref_idx):
