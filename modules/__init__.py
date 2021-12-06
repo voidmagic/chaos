@@ -11,7 +11,6 @@ from . import temporal_attention
 from . import transfer
 from . import mtl_optim
 from . import sample_epoch
-from . import context_gen
 from . import sample_mnmt_single_model
 
 
