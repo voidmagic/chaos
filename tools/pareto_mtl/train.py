@@ -1,5 +1,3 @@
-import collections
-
 import numpy as np
 
 import torch
@@ -55,7 +53,7 @@ def run_pareto():
     pass
 
 
-def train(niter, npref, init_weight, pref_idx, n_tasks=2):
+def train(niter, init_weight, pref_idx, n_tasks=2):
     # generate #npref preference vectors
     ref_vec = circle_points(5)
     train_loader, test_loader = load_dataset()
@@ -106,4 +104,4 @@ def train(niter, npref, init_weight, pref_idx, n_tasks=2):
             optimizer.step()
 
 
-train(niter=100, npref=5, init_weight=np.array([0.5 , 0.5 ]), pref_idx=2)
+train(niter=100, init_weight=np.array([0.5 , 0.5 ]), pref_idx=2)
