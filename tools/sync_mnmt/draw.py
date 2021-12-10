@@ -55,7 +55,7 @@ layer_weight = ["""
 0.09458718	0.09553404	0.08999694	0.11302112	0.12563662	0.48122442
 """]
 
-
+sns.set(font_scale = 1.4)
 overall_weight = [[float(w) for w in weight.split()] for weight in overall_weight.strip().split("\n")]
 
 layer_weight = [[[float(w) for w in weight.split()] for weight in layer_w.strip().split("\n")] for layer_w in layer_weight]
@@ -67,14 +67,16 @@ def make_data_frame(data):
     return df
 
 
-def draw_overall(weight, name):
+def draw_overall(weight, name, m, layer=None):
     fig = plt.figure()
     weight = make_data_frame(weight)
-    plot = sns.heatmap(weight, cmap='GnBu', vmax=0.15)
-    plot.set_xlabel('Auxiliary Languages')
+    plot = sns.heatmap(weight, cmap='GnBu', vmax=m)
+    plot.set_xlabel('Auxiliary Languages', labelpad=5)
     plot.set_ylabel('Language of Interests')
     plot.xaxis.set_ticks_position('top')
     plot.xaxis.set_label_position('top')
+    if layer is not None:
+        plot.text(2.7, 6.5, f'Layer {layer}',)
     # plt.show()
     plt.savefig(name)
     plot.clear()
@@ -88,10 +90,9 @@ def draw_layer_weight(weights):
     plt.show()
 
 
-# draw_overall(overall_weight, 'data/figure-7-overall-weight.pdf')
-#
-# for i, weight in enumerate(layer_weight):
-#     draw_overall(weight, f'data/figure-8-layer{i}-weight.pdf')
+draw_overall(overall_weight, 'data/figure-7-overall-weight.pdf', m=1)
 
-# draw_overall(overall_weight, '0')
-draw_overall(layer_weight[-1], 'data/figure-9-lang-weight.pdf')
+for i, weight in enumerate(layer_weight):
+    draw_overall(weight, f'data/figure-8-layer{i}-weight.pdf', m=1.0, layer=i)
+
+draw_overall(layer_weight[-1], 'data/figure-9-lang-weight.pdf', m=0.15)
