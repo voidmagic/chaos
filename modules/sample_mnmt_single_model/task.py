@@ -18,7 +18,7 @@ class SampledMultilingualSingleModelTask(GoogleMultilingualTranslationTask):
 
     def load_dataset(self, split, epoch=1, **kwargs):
         super(SampledMultilingualSingleModelTask, self).load_dataset(split, **kwargs)
-        if split != 'train':
+        if split != 'train' and split != 'valid':
             return
 
         def load_data(src, tgt):
@@ -51,7 +51,12 @@ class SampledMultilingualSingleModelTask(GoogleMultilingualTranslationTask):
 
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         for key, value in sample.items():
-            if value:
-                return super(SampledMultilingualSingleModelTask, self).train_step(
-                    value, model, criterion, optimizer, update_num, ignore_grad)
+            if value is None: continue
+            return super(SampledMultilingualSingleModelTask, self).train_step(value, model, criterion, optimizer, update_num, ignore_grad)
+        return None
+
+    def valid_step(self, sample, model, criterion):
+        for key, value in sample.items():
+            if value is None: continue
+            return super(SampledMultilingualSingleModelTask, self).valid_step(value, model, criterion)
         return None

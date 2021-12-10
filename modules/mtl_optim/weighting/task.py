@@ -1,17 +1,15 @@
 from fairseq.tasks import register_task
 
-from modules.sample_mnmt.task import SampledMultilingualTask
+from modules.sample_mnmt_single_model.task import SampledMultilingualSingleModelTask
 
 
 @register_task('weighting_task')
-class WeightMultilingualTask(SampledMultilingualTask):
-    def __init__(self, args, src_dict, tgt_dict):
-        super().__init__(args, src_dict, tgt_dict)
-        self.weight = dict()
+class WeightMultilingualTask(SampledMultilingualSingleModelTask):
+    weight = dict()
 
     @staticmethod
     def add_args(parser):
-        SampledMultilingualTask.add_args(parser)
+        SampledMultilingualSingleModelTask.add_args(parser)
         parser.add_argument('--weight', type=str, default=None)
 
     @classmethod
