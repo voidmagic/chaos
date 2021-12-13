@@ -24,7 +24,7 @@ def get_module_names(model: nn.Module):
 
     def _get_layer_name(_param_name):
         _param_name = _param_name.split('.')
-        _layer_index = _param_name.index('layers')  # encoder.layers.0, _layer_index=1, 取[:3]=[0,1,2]
+        _layer_index = _param_name.index('layers')  # encoder.layers.0, _layer_index=1, take [:3]=[0,1,2]
         return '.'.join(_param_name[:_layer_index + 2])
 
     all_param_names = [_get_layer_name(param) for param in all_param_names]
@@ -56,14 +56,19 @@ class ModelView:
     def auto_split(self):
         logger.info('Detect split parameters by grad')
         # 根据梯度，计算每个模块的散度
+        # calculate distance (or divergence) of each module.
         divergences = {}
-        for name, lang_pairs in self.container.items():   # name是模块的全名，lang_pairs是这个模块被多少语言对共享。
+        for name, lang_pairs in self.container.items():
+            # name是模块的全名，lang_pairs是这个模块被多少语言对共享。
+            # name is the full name of a module. lang_pairs is all languages that share this module.
             # 如果把name中的lang_pair变为lang_pairs中的lang_pair，那实际指向的是同一个模块
+            # if we change the `lang_pair` in `name` to `lang_pair` in `lang_pairs`, they actual point to the same module.
             short_name = ".".join(name.split('.')[2:])    # name: 'models.en-de.encoder.layers.0'  short_name: 'encoder.layers.0'
             module_gradients = {lang_pair: self.gradients[lang_pair][short_name] for lang_pair in lang_pairs}
             divergences[name] = calculate_div(module_gradients)
 
-        # 按距离排序，从大到小，-1表示距离最小，所有距离>T的module
+        # 按距离排序，从大到小，-1表示距离最小
+        # sorted by distance from large to small. -1 means the smallest distance.
         sorted_divergences = [d for d in sorted(divergences.items(), key=lambda item: -item[1][1])]
         for best_name, (best_lang_pairs, best_score) in sorted_divergences[:2]:
             logger.info('Split shared parameters: {}'.format(best_name))
@@ -73,21 +78,22 @@ class ModelView:
             yield self.split_module(best_name, best_lang_pairs)
 
     def split_module(self, module_to_split, split_lang_pairs):
-        # 1. 修改container的内容
-        # 旧的参数以lang_pairs[0][i]为base
+        # 1. 修改container的内容. Change the content in the container.
+        # 旧的参数以lang_pairs[0][i]为base. Old parameters take lang_pairs[0][i] as base.
         if module_to_split.split(".")[1] in split_lang_pairs[1]:
             split_lang_pairs[0], split_lang_pairs[1] = split_lang_pairs[1], split_lang_pairs[0]
 
         self.container[module_to_split] = split_lang_pairs[0]
-        # 新的参数以lang_pairs[1][0]为base
+        # 新的参数以lang_pairs[1][0]为base. New parameters take lang_pairs[1][0] as base.
         new_name = ".".join([module_to_split.split(".")[0], split_lang_pairs[1][0]] + module_to_split.split(".")[2:])
         self.container[new_name] = split_lang_pairs[1]
 
-        # 2. 新建参数
+        # 2. 新建参数. Create new parameters
         module_tree = name2module(self.model, module_to_split)
         new_module = copy.deepcopy(module_tree[-1]).cuda()
 
-        # 3. 给第二个聚类中的语言，赋予该模块
+        # 3. 给第二个聚类中的语言，赋予该模块. assign the new parameter to languages in the second cluster.
+        # 第一个聚类还是原来的参数。 the languages in the first cluster use the origin parameters.
         for lang_pair in split_lang_pairs[1]:
             module_name = ".".join([module_to_split.split(".")[0], lang_pair] + module_to_split.split(".")[2:])
             module_tree = name2module(self.model, module_name)
@@ -99,6 +105,8 @@ def calculate_div(module_gradients):
     """
     对于一个特定模块，由L种语言共享，module_gradients就是在这个模块上，每个语言对应的梯度。
     本函数对其进行聚类，最后分为两个类别，并返回类间距离。
+    For a specific module that shared by L languages, `module_gradients` means the gradient of each language on this module.
+    This function clusters the languages into two clusters, return the two clusters and their inter-cluster distance.
     :param module_gradients: dict of {lang_pair: gradient}
     :return: [[cluster_1], [cluster_2]], distance
     """

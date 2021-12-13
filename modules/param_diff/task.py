@@ -14,23 +14,19 @@ logger = logging.getLogger(__name__)
 
 @register_task('parameter_differentiation_task')
 class ParameterDifferentiationTask(MultilingualTranslationTask):
-    view: ModelView = None
+    _view: ModelView = None
 
-    def build_model(self, args):
-        model = super(ParameterDifferentiationTask, self).build_model(args)
-        self.view = ModelView(model)
-        return model
+    @property
+    def view(self):
+        if self._view is None:
+            self._view = ModelView(get_trainer().model)
+        return self._view
 
     def record_gradient(self, model):
         logger.info("Start accumulating gradient")
 
         criterion = cross_entropy.CrossEntropyCriterion(task=self, sentence_avg=False)
-        batch_iterator = self.get_batch_iterator(
-            dataset=self.dataset('valid'),
-            max_tokens=self.args.max_tokens_valid,
-            max_sentences=self.args.batch_size_valid,
-            max_positions=utils.resolve_max_positions(self.max_positions(), model.max_positions()),
-        ).next_epoch_itr(shuffle=False)
+        batch_iterator = self.dataset_to_epoch_iter[self.dataset('valid')].next_epoch_itr(shuffle=False)
 
         model.eval()
         for i, sample in enumerate(batch_iterator):
