@@ -125,7 +125,7 @@ def calculate_div(module_gradients):
 
     cluster = AgglomerativeClustering(linkage='average', affinity='cosine', n_clusters=2, compute_distances=True)
     lang_pairs, gradients = zip(*module_gradients.items())
-    labels = cluster.fit_predict(torch.stack(gradients).numpy())
+    labels = cluster.fit_predict(torch.stack(gradients).numpy() + 1e-5)
     cluster_0 = [lang_pair for lang_pair, label in zip(lang_pairs, labels) if label == 0]
     cluster_1 = [lang_pair for lang_pair, label in zip(lang_pairs, labels) if label == 1]
     return [cluster_0, cluster_1], cluster.distances_[-1]
