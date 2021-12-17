@@ -9,11 +9,11 @@ import torch.nn.functional as F
 from torch.optim import SGD
 from torchvision import transforms
 
-from pareto.metrics import topk_accuracy
-from pareto.optim import VisionHVPSolver, MINRESKKTSolver
-from pareto.datasets import MultiMNIST
-from pareto.networks import MultiLeNet
-from pareto.utils import TopTrace
+from tools.ContinuousParetoMTL.pareto.metrics import topk_accuracy
+from tools.ContinuousParetoMTL.pareto.optim import VisionHVPSolver, MINRESKKTSolver
+from tools.ContinuousParetoMTL.pareto.datasets import MultiMNIST
+from tools.ContinuousParetoMTL.pareto.networks import MultiLeNet
+from tools.ContinuousParetoMTL.pareto.utils import TopTrace
 
 
 @torch.no_grad()

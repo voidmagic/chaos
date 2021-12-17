@@ -11,10 +11,10 @@ from torch.optim import SGD
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torchvision import transforms
 
-from pareto.metrics import topk_accuracy
-from pareto.datasets import MultiMNIST
-from pareto.networks import MultiLeNet
-from pareto.utils import evenly_dist_weights
+from tools.ContinuousParetoMTL.pareto.metrics import topk_accuracy
+from tools.ContinuousParetoMTL.pareto.datasets import MultiMNIST
+from tools.ContinuousParetoMTL.pareto.networks import MultiLeNet
+from tools.ContinuousParetoMTL.pareto.utils import evenly_dist_weights
 
 
 @torch.no_grad()
