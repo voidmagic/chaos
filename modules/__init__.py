@@ -1,5 +1,3 @@
-from fairseq.file_io import PathManager
-
 from . import google_mnmt
 from . import gptmt
 from . import mtpt
@@ -13,6 +11,7 @@ from . import mtl_optim
 from . import sample_epoch
 from . import sample_mnmt_single_model
 from . import param_diff
+
 
 
 import logging
