@@ -18,10 +18,7 @@ class MultiLeNet(nn.Module):
     def shared_parameters(self) -> List[Tensor]:
         return [p for n, p in self.named_parameters() if not n.startswith('fc3')]
 
-    def forward(
-            self,
-            x: Tensor,
-        ) -> Tuple[Tensor, Tensor]:
+    def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         x = F.relu(self.conv1(x))
         x = F.max_pool2d(x, 2)
         x = F.relu(self.conv2(x))
