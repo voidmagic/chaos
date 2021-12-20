@@ -47,3 +47,9 @@ class MyTranslationMultiSimpleEpochTask(TranslationMultiSimpleEpochTask):
     def valid_step(self, sample, model, criterion):
         loss, sample_size, logging_output = super().valid_step(sample, model, criterion)
         return loss, sample_size, logging_output
+
+    def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
+        loss, sample_size, logging_output = super(MyTranslationMultiSimpleEpochTask, self).train_step(
+            sample, model, criterion, optimizer, update_num, ignore_grad
+        )
+        return loss, sample_size, logging_output
