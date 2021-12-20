@@ -1,6 +1,6 @@
 from fairseq.tasks import register_task
 
-from modules.sample_mnmt_single_model.task import SampledMultilingualSingleModelTask
+from modules.basics.sample_mnmt_single_model.task import SampledMultilingualSingleModelTask
 
 
 @register_task('weighting_task')

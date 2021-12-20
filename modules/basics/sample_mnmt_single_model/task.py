@@ -4,14 +4,14 @@ from collections import OrderedDict
 from fairseq.data import indexed_dataset, data_utils, PrependTokenDataset, LanguagePairDataset
 from fairseq.tasks import register_task
 
-from modules.sample_mnmt.dataset import MultilingualSampledDataset
-from modules.google_mnmt.google_mnmt_task import GoogleMultilingualTranslationTask
+from modules.basics.sample_mnmt.dataset import MultilingualSampledDataset
+from modules.basics.google_mnmt.google_mnmt_task import GoogleMultilingualTranslationTask
 
 
 @register_task("sample_mnmt_share")
 class SampledMultilingualSingleModelTask(GoogleMultilingualTranslationTask):
-    @staticmethod
-    def add_args(parser):
+    @classmethod
+    def add_args(cls, parser):
         GoogleMultilingualTranslationTask.add_args(parser)
         parser.add_argument('--sample-method', default='proportional', choices=['temperature', 'proportional', 'uniform'])
         parser.add_argument('--sample-temperature', default=5, type=int)
@@ -48,15 +48,16 @@ class SampledMultilingualSingleModelTask(GoogleMultilingualTranslationTask):
             temperature=self.args.sample_temperature
         )
 
-
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         for key, value in sample.items():
-            if value is None: continue
+            if value is None:
+                continue
             return super(SampledMultilingualSingleModelTask, self).train_step(value, model, criterion, optimizer, update_num, ignore_grad)
         return None
 
     def valid_step(self, sample, model, criterion):
         for key, value in sample.items():
-            if value is None: continue
+            if value is None:
+                continue
             return super(SampledMultilingualSingleModelTask, self).valid_step(value, model, criterion)
         return None

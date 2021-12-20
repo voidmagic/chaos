@@ -1,12 +1,10 @@
 import collections
-from typing import List
 
 import torch
 import torch.optim as optim
 from fairseq.tasks import register_task
 
-from modules.sample_mnmt_single_model.task import SampledMultilingualSingleModelTask
-from modules.mtl_optim.pareto.utils import get_d_paretomtl
+from modules.basics.sample_mnmt_single_model.task import SampledMultilingualSingleModelTask
 from fairseq import utils
 from modules.mtl_optim.cats.model import ModelParetoWeightLambda
 

@@ -1,4 +1,5 @@
 import os
+import fairseq
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask
 from fairseq.data import data_utils, PrependTokenDataset, LanguagePairDataset, ConcatDataset, indexed_dataset
@@ -6,13 +7,17 @@ from fairseq.data import data_utils, PrependTokenDataset, LanguagePairDataset, C
 
 @register_task('gmnmt_task')
 class GoogleMultilingualTranslationTask(TranslationTask):
-    @staticmethod
-    def add_args(parser):
+
+    @classmethod
+    def add_args(cls, parser):
         TranslationTask.add_args(parser)
         parser.add_argument('--lang-pairs', default=None, metavar='PAIRS', help='comma-separated list of language pairs (in training order): en-de,en-fr,de-fr')
         parser.add_argument('--langs', default=None, metavar='PAIRS', help='comma-separated list of all languages')
 
     def load_dataset(self, split, **kwargs):
+
+        if fairseq.version.__version__ > '0.10.2':
+            raise NotImplementedError("Only compatible with fairseq v0.10.2")
 
         def load_data(src, tgt):
             if indexed_dataset.dataset_exists(os.path.join(self.args.data, '{}.{}-{}.{}'.format(split, src, tgt, src)), None):

@@ -20,5 +20,5 @@ class SimpleMachineTranslationTask(TranslationTask):
         tgt_dataset = data_utils.load_indexed_dataset(prefix + self.args.target_lang, self.tgt_dict)
         self.datasets[split] = Dataset(src_dataset, src_dataset.sizes, self.src_dict, tgt_dataset, tgt_dataset.sizes, self.tgt_dict)
 
-    def build_generator(self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None):
+    def build_generator(self, models, args, seq_gen_cls=None, extra_gen_cls_kwargs=None, prefix_allowed_tokens_fn=None):
         return super(SimpleMachineTranslationTask, self).build_generator(models, args, SequenceGenerator)

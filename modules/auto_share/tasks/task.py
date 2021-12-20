@@ -8,7 +8,7 @@ from fairseq import utils
 from fairseq.tasks import register_task
 from fairseq.trainer import Trainer
 from fairseq.criterions import cross_entropy
-from modules.sample_mnmt.task import SampledMultilingualTask
+from modules.basics.sample_mnmt.task import SampledMultilingualTask
 from modules.auto_share.tasks.view import ModelView
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,6 @@ class AutoShareTranslationTask(SampledMultilingualTask):
         parser.add_argument('--split-count', default=1, type=int, metavar='BOOL', help='每次拆分多少个')
         parser.add_argument('--split-granularity', default='parameter', choices=['parameter', 'module', 'layer'])
         parser.add_argument('--split-momentum', default=0.0, type=float, help='其他任务的动量')
-
 
     def __init__(self, args, dicts, training):
         super().__init__(args, dicts, training)

@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from fairseq.tasks import register_task
 
-from modules.sample_mnmt_single_model.task import SampledMultilingualSingleModelTask
+from modules.basics.sample_mnmt_single_model.task import SampledMultilingualSingleModelTask
 from modules.mtl_optim.pareto.utils import get_d_paretomtl
 from fairseq import utils
 

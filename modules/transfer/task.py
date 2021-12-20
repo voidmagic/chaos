@@ -1,4 +1,4 @@
-from modules.sample_mnmt.task import SampledMultilingualTask
+from modules.basics.sample_mnmt.task import SampledMultilingualTask
 from fairseq.tasks import register_task
 
 
