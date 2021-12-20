@@ -103,7 +103,6 @@ def train(pref, ckpt_name):
     test_set = MultiMNIST(dataset_path, train=False, download=True, transform=transform)
     test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
-
     # prepare network
     network = MultiLeNet()
     network.to(device)
