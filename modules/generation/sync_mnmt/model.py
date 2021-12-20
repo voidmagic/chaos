@@ -3,8 +3,8 @@ from fairseq.models import register_model, register_model_architecture
 from fairseq.models.transformer import TransformerModel, TransformerDecoder, base_architecture
 from fairseq.modules import TransformerDecoderLayer
 
-from modules.sync_mnmt.task import Config
-from modules.sync_mnmt.utils.inter_attention import InterAttention
+from modules.generation.sync_mnmt.task import Config
+from modules.generation.sync_mnmt.utils.inter_attention import InterAttention
 
 
 @register_model("sync_transformer")

@@ -1,16 +1,14 @@
 
 import math
-from typing import Optional
 
 import torch
 from fairseq.sequence_generator import SequenceGenerator as FairSequenceGenerator
-from torch import Tensor
 
 
 class SequenceGenerator(FairSequenceGenerator):
 
     def _generate(self, sample, prefix_tokens=None, constraints=None, bos_token=None):
-        from modules.sync_mnmt.task import Config
+        from modules.generation.sync_mnmt.task import Config
 
         n_langs = Config.n_lang
         target_lang = Config.infer_target

@@ -9,7 +9,7 @@ from fairseq.tasks import register_task
 from fairseq.trainer import Trainer
 from fairseq.criterions import cross_entropy
 from modules.basics.sample_mnmt.task import SampledMultilingualTask
-from modules.differentiation.auto_share.tasks.view import ModelView
+from modules.training.auto_share.tasks.view import ModelView
 
 logger = logging.getLogger(__name__)
 

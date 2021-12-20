@@ -8,7 +8,7 @@ import torch.nn as nn
 from fairseq.modules import MultiheadAttention
 import torch.nn.functional as F
 
-from modules.sync_mnmt.task import Config
+from modules.generation.sync_mnmt.task import Config
 
 
 class InterAttention(MultiheadAttention):

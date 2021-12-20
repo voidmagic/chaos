@@ -1,7 +1,7 @@
 # from . import gpt
 # from . import basics
-from . import sync_mnmt
-from . import differentiation
+from . import generation
+from . import training
 from . import optimization
 
 import torch.multiprocessing
