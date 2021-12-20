@@ -2,7 +2,7 @@
 # from . import basics
 from . import sync_mnmt
 from . import differentiation
-from . import mtl_optim
+from . import optimization
 
 import torch.multiprocessing
 import warnings

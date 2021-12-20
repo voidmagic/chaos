@@ -1,27 +1,31 @@
-import collections
-
 import torch
-import torch.optim as optim
+import numpy as np
 from fairseq.tasks import register_task
 
 from modules.basics.sample_mnmt_single_model.task import SampledMultilingualSingleModelTask
+from modules.optimization.baselines.mtl_optim.pareto.utils import get_d_paretomtl
 from fairseq import utils
-from modules.mtl_optim.cats.model import ModelParetoWeightLambda
 
 
-@register_task("cats_mnmt")
-class CatsLearningMultilingualTask(SampledMultilingualSingleModelTask):
+def circle_points(n):
+    t = np.linspace(0, 0.5 * np.pi, n)
+    x = np.cos(t)
+    y = np.sin(t)
+    ref_vec = torch.tensor(np.c_[x, y]).cuda().float()
+    return ref_vec
+
+
+@register_task("pareto_mnmt")
+class ParetoLearningMultilingualTask(SampledMultilingualSingleModelTask):
     weight = dict()
-    lang_pairs = list()
-    weight_model = None
-    weight_optimizer = None
+    lang_pairs = None
+    preference = None
 
     @classmethod
     def setup_task(cls, args, **kwargs):
-        task: CatsLearningMultilingualTask = super(CatsLearningMultilingualTask, cls).setup_task(args, **kwargs)
+        task: ParetoLearningMultilingualTask = super(ParetoLearningMultilingualTask, cls).setup_task(args, **kwargs)
         task.lang_pairs = ["-".join(pair) for pair in args.lang_pairs]
-        task.weight_model = ModelParetoWeightLambda(len(task.lang_pairs)).cuda()
-        task.weight_optimizer = optim.SGD(task.weight_model.parameters(), lr=0.00001)
+        task.preference = circle_points(5)
         return task
 
     def update_weight(self, model, criterion):
@@ -37,41 +41,36 @@ class CatsLearningMultilingualTask(SampledMultilingualSingleModelTask):
             data_buffer_size=self.args.data_buffer_size,
         ).next_epoch_itr(shuffle=False)
 
+        losses_vec = dict()
+        grads = dict()
         model.eval()
         model.zero_grad()
-        grads_dict = collections.defaultdict(list)
-        losses_dict = collections.defaultdict(list)
         for i, sample in enumerate(batch_iterator):
             sample = utils.move_to_cuda(sample)
 
             for key, value in sample.items():
-                if value is None: continue
-
+                if value is None or key in grads: continue
                 loss, _, _ = criterion(model, value)
+                losses_vec[key] = loss.data
                 loss.backward()
-                grads_dict[key].append(torch.cat([p.grad.clone().detach().flatten() for p in model.parameters() if p.grad is not None]))
-                losses_dict[key].append(loss.clone().detach())
+                grads[key] = [p.grad.clone().detach().flatten() for p in model.parameters() if p.grad is not None]
                 model.zero_grad()
 
-        grads_dict_tensor = dict()
-        losses_dict_tensor = dict()
-        for key in self.lang_pairs:
-            grads_dict_tensor[key] = torch.mean(torch.stack(grads_dict[key], dim=0), dim=0)
-            losses_dict_tensor[key] = torch.mean(torch.stack(losses_dict[key], dim=0), dim=0)
-
-        grads = torch.stack([grads_dict_tensor[key] for key in self.lang_pairs], dim=0)
-        losses = torch.stack([losses_dict_tensor[key] for key in self.lang_pairs], dim=0)
-        self.weight_model.zero_grad()
-        weight_loss = self.weight_model(losses, grads)
-        weight_loss.backward()
-        self.weight_optimizer.step()
-        del weight_loss
+        grads = torch.stack([torch.cat(grads[key]) for key in self.lang_pairs]).float()
+        losses_vec = torch.stack([losses_vec[key] for key in self.lang_pairs])
+        weight_vec = get_d_paretomtl(grads, losses_vec, self.preference, 0)
+        normalize_coeff = len(self.lang_pairs) / torch.sum(torch.abs(weight_vec))
+        weight_vec = weight_vec * normalize_coeff
+        self.weight = dict(zip(self.lang_pairs, weight_vec.tolist()))
         model.train()
-        self.weight = dict(zip(self.lang_pairs, self.weight_model.alpha.tolist()))
 
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
-        if update_num % 100 == 0 and update_num > 40000:
-            self.update_weight(model, criterion)
+        if update_num % 10 == 0 and update_num > 15000:
+        # if update_num % 10 == 0 and update_num > 20:
+            try:
+                self.update_weight(model, criterion)
+            except UnboundLocalError as e:
+                pass
 
         loss = sample_size = logging_output = None
         for key, value in sample.items():
