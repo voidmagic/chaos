@@ -50,9 +50,7 @@ def evaluate(network, dataloader, device, closures, header=''):
 
 
 def train(pref, ckpt_name):
-
     # prepare hyper-parameters
-
     seed = 42
 
     cuda_enabled = True
@@ -134,6 +132,7 @@ def train(pref, ckpt_name):
 
     # training
     num_steps = len(train_loader)
+    losses = tops = None
     for epoch in range(1, num_epochs + 1):
 
         network.train(True)
