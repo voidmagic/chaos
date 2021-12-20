@@ -6,7 +6,7 @@ from fairseq.data import data_utils, LanguagePairDataset
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask
 
-from modules.gptmt.models.share_transformer import ShareEncoderDecoderTransformerModel
+from modules.gpt.gptmt.models.share_transformer import ShareEncoderDecoderTransformerModel
 from .dataset import Dataset, FakeLanguagePairDataset
 
 

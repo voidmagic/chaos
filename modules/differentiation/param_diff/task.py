@@ -7,7 +7,7 @@ from fairseq.tasks import register_task
 from fairseq.tasks.multilingual_translation import MultilingualTranslationTask
 from fairseq.trainer import Trainer
 from fairseq.criterions import cross_entropy
-from modules.param_diff.view import ModelView
+from modules.differentiation.param_diff.view import ModelView
 
 logger = logging.getLogger(__name__)
 
