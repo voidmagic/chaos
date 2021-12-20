@@ -11,6 +11,8 @@ from torch.optim import SGD
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torchvision import transforms
 
+import torch.utils.data
+
 from tools.ContinuousParetoMTL.pareto.metrics import topk_accuracy
 from tools.ContinuousParetoMTL.pareto.datasets import MultiMNIST
 from tools.ContinuousParetoMTL.pareto.networks import MultiLeNet
@@ -65,9 +67,7 @@ def train(pref, ckpt_name):
 
     num_epochs = 30
 
-
     # prepare path
-
     root_path = Path(__file__).resolve().parent
     dataset_path = root_path / 'MultiMNIST'
     ckpt_path = root_path / 'weighted_sum'
@@ -76,18 +76,14 @@ def train(pref, ckpt_name):
     dataset_path.mkdir(parents=True, exist_ok=True)
     ckpt_path.mkdir(parents=True, exist_ok=True)
 
-
     # fix random seed
-
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     if cuda_enabled and torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
-
     # prepare device
-
     if cuda_enabled and torch.cuda.is_available():
         import torch.backends.cudnn as cudnn
         device = torch.device('cuda')
@@ -99,38 +95,28 @@ def train(pref, ckpt_name):
     else:
         device = torch.device('cpu')
 
-
     # prepare dataset
-
     transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
 
-    trainset = MultiMNIST(dataset_path, train=True, download=True, transform=transform)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-
-    testset = MultiMNIST(dataset_path, train=False, download=True, transform=transform)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    train_set = MultiMNIST(dataset_path, train=True, download=True, transform=transform)
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    test_set = MultiMNIST(dataset_path, train=False, download=True, transform=transform)
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
 
     # prepare network
-
     network = MultiLeNet()
     network.to(device)
 
-
     # prepare losses
-
     criterion = F.cross_entropy
     closures = [lambda n, l, t: criterion(l[0], t[:, 0]), lambda n, l, t: criterion(l[1], t[:, 1])]
 
-
     # prepare optimizer
-
     optimizer = SGD(network.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
-    lr_scheduler = CosineAnnealingLR(optimizer, num_epochs * len(trainloader))
-
+    lr_scheduler = CosineAnnealingLR(optimizer, num_epochs * len(train_loader))
 
     # save initial state
-
     if not (ckpt_path / 'random.pth').is_file():
         random_ckpt = {
             'state_dict': network.state_dict(),
@@ -144,22 +130,18 @@ def train(pref, ckpt_name):
     optimizer.load_state_dict(random_ckpt['optimizer'])
     lr_scheduler.load_state_dict(random_ckpt['lr_scheduler'])
 
-
     # first evaluation
-
-    evaluate(network, testloader, device, closures, f'{ckpt_name}')
-
+    evaluate(network, test_loader, device, closures, f'{ckpt_name}')
 
     # training
-
-    num_steps = len(trainloader)
+    num_steps = len(train_loader)
     for epoch in range(1, num_epochs + 1):
 
         network.train(True)
-        trainiter = iter(trainloader)
+        train_iter = iter(train_loader)
         for _ in range(1, num_steps + 1):
 
-            images, labels = next(trainiter)
+            images, labels = next(train_iter)
             images = images.to(device)
             labels = labels.to(device)
             logits = network(images)
@@ -170,11 +152,9 @@ def train(pref, ckpt_name):
             optimizer.step()
             lr_scheduler.step()
 
-        losses, tops = evaluate(network, testloader, device, closures, f'{ckpt_name}: {epoch}/{num_epochs}')
-
+        losses, tops = evaluate(network, test_loader, device, closures, f'{ckpt_name}: {epoch}/{num_epochs}')
 
     # saving
-
     ckpt = {
         'state_dict': network.state_dict(),
         'optimizer': optimizer.state_dict(),
