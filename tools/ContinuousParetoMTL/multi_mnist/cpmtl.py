@@ -9,6 +9,8 @@ import torch.nn.functional as F
 from torch.optim import SGD
 from torchvision import transforms
 
+import torch.utils.data
+
 from tools.ContinuousParetoMTL.pareto.metrics import topk_accuracy
 from tools.ContinuousParetoMTL.pareto.optim import VisionHVPSolver, MINRESKKTSolver
 from tools.ContinuousParetoMTL.pareto.datasets import MultiMNIST
@@ -67,7 +69,7 @@ def train(start_path, beta):
     shift = 0.0
     tol = 1e-5
     damping = 0.1
-    maxiter = 50
+    max_iter = 50
 
     lr = 0.1
     momentum = 0.0
@@ -77,9 +79,7 @@ def train(start_path, beta):
 
     verbose = False
 
-
     # prepare path
-
     ckpt_name = start_path.name.split('.')[0]
     root_path = Path(__file__).resolve().parent
     dataset_path = root_path / 'MultiMNIST'
@@ -92,7 +92,6 @@ def train(start_path, beta):
     dataset_path.mkdir(parents=True, exist_ok=True)
     ckpt_path.mkdir(parents=True, exist_ok=True)
 
-
     # fix random seed
 
     random.seed(seed)
@@ -100,7 +99,6 @@ def train(start_path, beta):
     torch.manual_seed(seed)
     if cuda_enabled and torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-
 
     # prepare device
 
@@ -115,60 +113,44 @@ def train(start_path, beta):
     else:
         device = torch.device('cpu')
 
-
     # prepare dataset
 
     transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
 
-    trainset = MultiMNIST(dataset_path, train=True, download=True, transform=transform)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    train_set = MultiMNIST(dataset_path, train=True, download=True, transform=transform)
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers)
 
-    testset = MultiMNIST(dataset_path, train=False, download=True, transform=transform)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-
+    test_set = MultiMNIST(dataset_path, train=False, download=True, transform=transform)
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
     # prepare network
-
     network = MultiLeNet()
     network.to(device)
 
-
     # initialize network
-
-    start_ckpt = torch.load(start_path, map_location='cpu')
-    network.load_state_dict(start_ckpt['state_dict'])
-
+    start_checkpoint = torch.load(start_path, map_location='cpu')
+    network.load_state_dict(start_checkpoint['state_dict'])
 
     # prepare losses
-
     criterion = F.cross_entropy
     closures = [lambda n, l, t: criterion(l[0], t[:, 0]), lambda n, l, t: criterion(l[1], t[:, 1])]
 
-
     # prepare HVP solver
-
-    hvp_solver = VisionHVPSolver(network, device, trainloader, closures, shared=shared)
+    hvp_solver = VisionHVPSolver(network, device, train_loader, closures, shared=shared)
     hvp_solver.set_grad(batch=False)
     hvp_solver.set_hess(batch=True)
 
-
     # prepare KKT solver
-
     kkt_solver = MINRESKKTSolver(
         network, hvp_solver, device,
         stochastic=stochastic, kkt_momentum=kkt_momentum, create_graph=create_graph,
-        grad_correction=grad_correction, shift=shift, tol=tol, damping=damping, maxiter=maxiter)
-
+        grad_correction=grad_correction, shift=shift, tol=tol, damping=damping, maxiter=max_iter)
 
     # prepare optimizer
-
     optimizer = SGD(network.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
 
-
     # first evaluation
-
-    losses, tops = evaluate(network, testloader, device, closures, f'{ckpt_name}')
-
+    losses, tops = evaluate(network, test_loader, device, closures, f'{ckpt_name}')
 
     # prepare utilities
     top_trace = TopTrace(len(closures))
@@ -176,9 +158,7 @@ def train(start_path, beta):
 
     beta = beta.to(device)
 
-
     # training
-
     for step in range(1, num_steps + 1):
 
         network.train(True)
@@ -186,18 +166,18 @@ def train(start_path, beta):
         kkt_solver.backward(beta, verbose=verbose)
         optimizer.step()
 
-        losses, tops = evaluate(network, testloader, device, closures, f'{ckpt_name}: {step}/{num_steps}')
+        losses, tops = evaluate(network, test_loader, device, closures, f'{ckpt_name}: {step}/{num_steps}')
 
         top_trace.print(tops)
 
-        ckpt = {
+        checkpoint = {
             'state_dict': network.state_dict(),
             'optimizer': optimizer.state_dict(),
             'beta': beta,
         }
         record = {'losses': losses, 'tops': tops}
-        ckpt['record'] = record
-        torch.save(ckpt, ckpt_path / f'{step:d}.pth')
+        checkpoint['record'] = record
+        torch.save(checkpoint, ckpt_path / f'{step:d}.pth')
 
     hvp_solver.close()
 
