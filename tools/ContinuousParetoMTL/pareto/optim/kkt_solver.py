@@ -15,18 +15,14 @@ __all__ = ['KKTSolver', 'KrylovKKTSolver', 'CGKKTSolver', 'MINRESKKTSolver']
 
 
 class KKTSolver(object):
-
-    def __init__(
-            self,
-            network: nn.Module,
-            hvp_solver: HVPSolver,
-            device: torch.device,
-            *,
-            kkt_momentum: float = 0.0,
-            create_graph: bool = False,
-            grad_correction: bool = False,
-        ) -> None:
-
+    def __init__(self,
+                 network: nn.Module,
+                 hvp_solver: HVPSolver,
+                 device: torch.device,
+                 *,
+                 kkt_momentum: float = 0.0,
+                 create_graph: bool = False,
+                 grad_correction: bool = False) -> None:
         self.network = network
         self.hvp_solver = hvp_solver
         self.device = device
@@ -36,17 +32,10 @@ class KKTSolver(object):
         self.create_graph = create_graph
         self.grad_correction = grad_correction
 
-
     def zero_grad(self) -> None:
         self.hvp_solver.zero_grad()
 
-
-    def _jacobians_alphas_rhs(
-            self,
-            weights: Tensor,
-            *,
-            verbose: bool = True,
-        ) -> Tuple[Tensor, Tensor, Tensor]:
+    def _jacobians_alphas_rhs(self, weights: Tensor, *, verbose: bool = True) -> Tuple[Tensor, Tensor, Tensor]:
 
         grad_correction = self.grad_correction
         kkt_momentum = self.kkt_momentum
@@ -86,14 +75,8 @@ class KKTSolver(object):
 
         return jacobians, alphas, rhs.clone().detach()
 
-
     @torch.no_grad()
-    def _print_alpha_beta_cosine(
-            self,
-            jacobians: Tensor,
-            alphas: Tensor,
-            direction: Tensor
-        ) -> None:
+    def _print_alpha_beta_cosine(self, jacobians: Tensor, alphas: Tensor, direction: Tensor) -> None:
 
         direction = self.hvp_solver.apply(direction, alphas)
         jacobians = jacobians.neg().detach()
@@ -124,31 +107,13 @@ class KKTSolver(object):
         cosine = np.rad2deg(np.arccos(span.div(span.norm(2)).dot(direction.div(direction.norm(2))).item()))
         print(alpha, beta, cosine)
 
-
-    def backward(
-            self,
-            weights: Tensor,
-            *,
-            verbose: bool = False,
-        ) -> None:
-
+    def backward(self, weights: Tensor, *, verbose: bool = False) -> None:
         jacobians, alphas, rhs = self._jacobians_alphas_rhs(weights, verbose=verbose)
         direction = self._explore(jacobians, alphas, rhs, weights, verbose=verbose)
         self.apply_grad(direction, normalize=True)
 
-
-    def _explore(
-            self,
-            jacobians: Tensor,
-            alphas: Tensor,
-            rhs: Tensor,
-            weights: Tensor,
-            *,
-            verbose: bool,
-        ) -> Tensor:
-
+    def _explore(self, jacobians: Tensor, alphas: Tensor, rhs: Tensor, weights: Tensor, *, verbose: bool) -> Tensor:
         raise NotImplementedError
-
 
     @torch.no_grad()
     def cosine(self) -> float:
@@ -156,15 +121,8 @@ class KKTSolver(object):
         cosine = jacobians[0].dot(jacobians[1]).div(jacobians[0].norm(2) * jacobians[1].norm(2)).item()
         return cosine
 
-
     @torch.no_grad()
-    def apply_grad(
-            self,
-            direction: Tensor,
-            *,
-            normalize: bool = True,
-        ) -> None:
-
+    def apply_grad(self, direction: Tensor, *, normalize: bool = True) -> None:
         if normalize:
             direction.div_(direction.norm())
         offset = 0
@@ -176,19 +134,16 @@ class KKTSolver(object):
 
 
 class KrylovKKTSolver(KKTSolver):
-
-    def __init__(
-            self,
-            network: nn.Module,
-            hvp_solver: HVPSolver,
-            device: torch.device,
-            krylov_solver: KrylovSolver,
-            *,
-            stochastic: bool = True,
-            kkt_momentum: float = 0.0,
-            create_graph: bool = False,
-            grad_correction: bool = False,
-        ) -> None:
+    def __init__(self,
+                 network: nn.Module,
+                 hvp_solver: HVPSolver,
+                 device: torch.device,
+                 krylov_solver: KrylovSolver,
+                 *,
+                 stochastic: bool = True,
+                 kkt_momentum: float = 0.0,
+                 create_graph: bool = False,
+                 grad_correction: bool = False) -> None:
 
         super(KrylovKKTSolver, self).__init__(
             network, hvp_solver, device,
@@ -207,8 +162,7 @@ class KrylovKKTSolver(KKTSolver):
             rhs: Tensor,
             weights: Tensor,
             *,
-            verbose: bool,
-        ) -> Tensor:
+            verbose: bool) -> Tensor:
 
         lazy_jacobians = None if self.stochastic else self.hvp_solver.grad_batch(create_graph=True)[0]
         with self.krylov_solver.solve(lazy_jacobians, jacobians, alphas, rhs, verbose=verbose) as results:
@@ -231,8 +185,7 @@ class CGKKTSolver(KrylovKKTSolver):
             tol: float = 1e-5,
             damping: float = 0.0,
             maxiter: int = 5,
-            pd_strict: bool = True,
-        ) -> None:
+            pd_strict: bool = True) -> None:
 
         krylov_solver = CGSolver(hvp_solver, device, tol, damping, maxiter, pd_strict)
 
@@ -241,8 +194,7 @@ class CGKKTSolver(KrylovKKTSolver):
             stochastic=stochastic,
             kkt_momentum=kkt_momentum,
             create_graph=create_graph,
-            grad_correction=grad_correction,
-        )
+            grad_correction=grad_correction)
 
 
 class MINRESKKTSolver(KrylovKKTSolver):
@@ -260,8 +212,7 @@ class MINRESKKTSolver(KrylovKKTSolver):
             shift: float = 0.0,
             tol: float = 1e-5,
             damping: float = 0.0,
-            maxiter: int = 50,
-        ) -> None:
+            maxiter: int = 50) -> None:
 
         krylov_solver = MINRESSolver(network, hvp_solver, device, shift, tol, damping, maxiter)
 

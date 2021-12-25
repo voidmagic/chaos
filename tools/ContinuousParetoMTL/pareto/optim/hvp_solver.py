@@ -3,6 +3,7 @@ from typing import Tuple, List, Iterable, Callable
 
 import torch
 import torch.nn as nn
+import torch.utils.data
 from torch import Tensor
 from torch.nn.utils import parameters_to_vector
 
@@ -24,8 +25,7 @@ class HVPSolver(object):
             network: nn.Module,
             parameters: Iterable[Tensor],
             device: torch.device,
-            dataloader: torch.utils.data.DataLoader,
-        ) -> None:
+            dataloader: torch.utils.data.DataLoader) -> None:
 
         self.parameters = list(parameters)
         self.size = int(sum(p.numel() for p in self.parameters))
@@ -37,38 +37,21 @@ class HVPSolver(object):
         self.apply = self.apply_batch
         self.grad = self.grad_batch
 
-
-    def close(self) -> None:
-
-        try:
-            while True:
-                _ = next(self.dataiter)
-        except StopIteration:
-            pass
-
-        self.dataiter = None
-        self.dataloader = None
-
-
     def set_hess(
             self,
             *,
             batch: bool = True,
-            num_batches: int = None,
-        ) -> None:
+            num_batches: int = None) -> None:
 
         self.apply = self.apply_batch if batch else partial(self.apply_full, num_batches=num_batches)
-
 
     def set_grad(
             self,
             *,
             batch: bool = True,
-            num_batches: int = None,
-        ) -> None:
+            num_batches: int = None) -> None:
 
         self.grad = self.grad_batch if batch else partial(self.grad_full, num_batches=num_batches)
-
 
     @torch.enable_grad()
     def apply_batch(
@@ -77,8 +60,7 @@ class HVPSolver(object):
             weights: Tensor = None,
             *,
             grads: Tensor = None,
-            retain_graph: bool = True,
-        ) -> Tuple[Tensor, Tensor]:
+            retain_graph: bool = True) -> Tuple[Tensor, Tensor]:
 
         """
         Returns H * vec where H is the hessian of the loss w.r.t.
@@ -86,7 +68,6 @@ class HVPSolver(object):
         """
 
         raise NotImplementedError
-
 
     @torch.enable_grad()
     def apply_full(
@@ -96,8 +77,7 @@ class HVPSolver(object):
             *,
             grads: Tensor = None,
             num_batches: int = None,
-            retain_graph: bool = False,
-        ) -> Tensor:
+            retain_graph: bool = False) -> Tensor:
 
         apply_batch = self.apply_batch
 
@@ -113,7 +93,6 @@ class HVPSolver(object):
         weighted_hvp.div_(num_batches)
         return weighted_hvp
 
-
     def zero_grad(self) -> None:
 
         """
@@ -124,27 +103,22 @@ class HVPSolver(object):
             if p.grad is not None:
                 p.grad.data.zero_()
 
-
     def set_data(
             self,
-            dataloader: torch.utils.data.DataLoader,
-        ) -> None:
+            dataloader: torch.utils.data.DataLoader) -> None:
 
         self.dataloader = dataloader
         self.dataiter = iter(dataloader)
-
 
     @torch.enable_grad()
     def get_losses(self) -> List[Tensor]:
         raise NotImplementedError
 
-
     @torch.enable_grad()
     def grad_batch(
             self,
             *,
-            create_graph: bool = True,
-        ) -> Tuple[Tensor, List[Tensor]]:
+            create_graph: bool = True) -> Tuple[Tensor, List[Tensor]]:
 
         parameters = self.parameters
 
@@ -160,14 +134,12 @@ class HVPSolver(object):
 
         return grads, losses
 
-
     @torch.enable_grad()
     def grad_full(
             self,
             *,
             create_graph: bool = False,
-            num_batches: int = None,
-        ) -> Tensor:
+            num_batches: int = None) -> Tensor:
 
         grad_batch = self.grad_batch
 
@@ -194,7 +166,6 @@ class AutogradHVPSolver(HVPSolver):
     def get_losses(self) -> List[Tensor]:
         raise NotImplementedError
 
-
     @torch.enable_grad()
     def apply_batch(
             self,
@@ -202,8 +173,7 @@ class AutogradHVPSolver(HVPSolver):
             weights: Tensor = None,
             *,
             grads: Tensor = None,
-            retain_graph: bool = True,
-        ) -> Tuple[Tensor, Tensor]:
+            retain_graph: bool = True) -> Tuple[Tensor, Tensor]:
 
         """
         Returns H * vec where H is the hessian of the loss w.r.t.
@@ -239,13 +209,11 @@ class VisionHVPSolver(AutogradHVPSolver):
             dataloader: torch.utils.data.DataLoader,
             closures: List[Callable],
             *,
-            shared: bool = False,
-        ) -> None:
+            shared: bool = False) -> None:
 
         parameters = network.shared_parameters() if shared else network.parameters()
         super(VisionHVPSolver, self).__init__(network, parameters, device, dataloader)
         self.closures = closures
-
 
     @torch.enable_grad()
     def get_losses(self) -> List[Tensor]:

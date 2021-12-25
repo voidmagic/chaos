@@ -58,7 +58,7 @@ def train(start_path, beta):
     cuda_deterministic = False
 
     batch_size = 2048
-    num_workers = 2
+    num_workers = 0
 
     shared = False
 
@@ -160,26 +160,17 @@ def train(start_path, beta):
 
     # training
     for step in range(1, num_steps + 1):
-
         network.train(True)
         optimizer.zero_grad()
+
+        # 普通的优化：
+        # loss = network(data)
+        # loss.backward()
+
         kkt_solver.backward(beta, verbose=verbose)
         optimizer.step()
-
         losses, tops = evaluate(network, test_loader, device, closures, f'{ckpt_name}: {step}/{num_steps}')
-
         top_trace.print(tops)
-
-        checkpoint = {
-            'state_dict': network.state_dict(),
-            'optimizer': optimizer.state_dict(),
-            'beta': beta,
-        }
-        record = {'losses': losses, 'tops': tops}
-        checkpoint['record'] = record
-        torch.save(checkpoint, ckpt_path / f'{step:d}.pth')
-
-    hvp_solver.close()
 
 
 def cpmtl():
