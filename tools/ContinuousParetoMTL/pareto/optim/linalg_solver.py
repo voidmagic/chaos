@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from .hvp_solver import HVPSolver
+from .hvp_solver import VisionHVPSolver
 
 
 __all__ = ['PDError', 'HVPLinearOperator', 'KrylovSolver', 'MINRESSolver', 'CGSolver']
@@ -25,10 +25,9 @@ class HVPLinearOperator(LinearOperator):
     def __init__(
             self,
             network: nn.Module,
-            hvp_solver: HVPSolver,
+            hvp_solver: VisionHVPSolver,
             device: torch.device,
-            damping: float,
-        ) -> None:
+            damping: float) -> None:
 
         shape = (hvp_solver.size, hvp_solver.size)
         dtype = list(network.parameters())[0].detach().cpu().numpy().dtype
@@ -78,7 +77,7 @@ class HVPLinearOperator(LinearOperator):
             tensor: Tensor,
         ) -> Tensor:
 
-        alphas_hvps, _ = self.hvp_solver.apply(
+        alphas_hvps = self.hvp_solver.apply(
             tensor, self.alphas, grads=self.jacobians, retain_graph=self.jacobians is not None) # (N,)
         if self.damping > 0.0:
             alphas_hvps.add_(tensor, alpha=self.damping)
@@ -126,7 +125,7 @@ class MINRESSolver(KrylovSolver):
     def __init__(
             self,
             network: nn.Module,
-            hvp_solver: HVPSolver,
+            hvp_solver: VisionHVPSolver,
             device: torch.device,
             shift: float,
             tol: float,
@@ -183,7 +182,7 @@ class CGSolver(KrylovSolver):
 
     def __init__(
             self,
-            hvp_solver: HVPSolver,
+            hvp_solver: VisionHVPSolver,
             device: torch.device,
             tol: float,
             damping: float,

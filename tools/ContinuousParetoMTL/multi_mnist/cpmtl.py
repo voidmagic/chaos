@@ -60,8 +60,6 @@ def train(start_path, beta):
     batch_size = 2048
     num_workers = 0
 
-    shared = False
-
     stochastic = False
     kkt_momentum = 0.0
     create_graph = False
@@ -136,9 +134,7 @@ def train(start_path, beta):
     closures = [lambda n, l, t: criterion(l[0], t[:, 0]), lambda n, l, t: criterion(l[1], t[:, 1])]
 
     # prepare HVP solver
-    hvp_solver = VisionHVPSolver(network, device, train_loader, closures, shared=shared)
-    hvp_solver.set_grad(batch=False)
-    hvp_solver.set_hess(batch=True)
+    hvp_solver = VisionHVPSolver(network, device, train_loader, closures)
 
     # prepare KKT solver
     kkt_solver = MINRESKKTSolver(
@@ -167,7 +163,7 @@ def train(start_path, beta):
         # loss = network(data)
         # loss.backward()
 
-        kkt_solver.backward(beta, verbose=verbose)
+        kkt_solver.backward(beta)
         optimizer.step()
         losses, tops = evaluate(network, test_loader, device, closures, f'{ckpt_name}: {step}/{num_steps}')
         top_trace.print(tops)
