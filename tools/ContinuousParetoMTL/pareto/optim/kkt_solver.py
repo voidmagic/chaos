@@ -11,25 +11,13 @@ __all__ = ['MINRESKKTSolver']
 
 
 class MINRESKKTSolver(object):
-    def __init__(
-            self,
-            network: nn.Module,
-            device: torch.device,
-            train_loader,
-            closures,
-            *,
-            shift: float = 0.0,
-            tol: float = 1e-5,
-            damping: float = 0.0,
-            maxiter: int = 50) -> None:
-
+    def __init__(self, network: nn.Module, train_loader, closures, *, shift: float = 0.0, tol: float = 1e-5, damping: float = 0.0, maxiter: int = 50):
         # prepare HVP solver
-        hvp_solver = VisionHVPSolver(network, device, train_loader, closures)
-        krylov_solver = MINRESSolver(network, hvp_solver, device, shift, tol, damping, maxiter)
+        hvp_solver = VisionHVPSolver(network, train_loader, closures)
+        krylov_solver = MINRESSolver(network, hvp_solver, shift, tol, damping, maxiter)
 
         self.network = network
         self.hvp_solver = hvp_solver
-        self.device = device
         self.krylov_solver = krylov_solver
 
     def backward(self, weights: Tensor) -> None:

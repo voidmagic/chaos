@@ -123,7 +123,7 @@ def train(start_path, beta):
 
     # prepare KKT solver
     kkt_solver = MINRESKKTSolver(
-        network, device, train_loader, closures,
+        network, train_loader, closures,
         shift=shift, tol=tol, damping=damping, maxiter=max_iter)
 
     # prepare optimizer

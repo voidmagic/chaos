@@ -16,20 +16,12 @@ class VisionHVPSolver(object):
     network:     PyTorch network to compute hessian for
     parameters:  parameters which are computed hessian w.r.t.
     dataloader:  PyTorch dataloader that we get examples from to compute grads
-    device:      gpu/cpu device
     """
 
-    def __init__(
-            self,
-            network: nn.Module,
-            device: torch.device,
-            dataloader: torch.utils.data.DataLoader,
-            closures: List[Callable]) -> None:
-
+    def __init__(self, network: nn.Module, dataloader: torch.utils.data.DataLoader, closures: List[Callable]):
         self.parameters = list(network.parameters())
         self.size = int(sum(p.numel() for p in self.parameters))
         self.network = network
-        self.device = device
         self.dataloader = dataloader
         # Make a copy since we will go over it a bunch
         self.dataiter = iter(dataloader) if dataloader else None
@@ -122,12 +114,12 @@ class VisionHVPSolver(object):
             self.dataiter = iter(self.dataloader)
             inputs, targets = next(self.dataiter)
 
-        inputs = inputs.to(self.device)
+        inputs = inputs.cuda()
 
         if isinstance(targets, list):
-            targets = [target.to(self.device) for target in targets]
+            targets = [target.cuda() for target in targets]
         else:
-            targets = targets.to(self.device)
+            targets = targets.cuda()
 
         logits = self.network(inputs)
         return [c(self.network, logits, targets) for c in self.closures]
