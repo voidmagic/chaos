@@ -52,8 +52,7 @@ class HVPLinearOperator(LinearOperator):
         return self.hvp_counter, self.matvec_counter
 
     def _matvec_tensor(self, tensor: Tensor):
-        alphas_hvps = self.hvp_solver.apply(
-            tensor, self.alphas, grads=self.jacobians, retain_graph=self.jacobians is not None) # (N,)
+        alphas_hvps = self.hvp_solver.apply_batch(tensor, self.alphas, grads=self.jacobians, retain_graph=self.jacobians is not None)  # (N,)
         if self.damping > 0.0:
             alphas_hvps.add_(tensor, alpha=self.damping)
         self.hvp_counter += 1

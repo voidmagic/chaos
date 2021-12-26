@@ -25,7 +25,6 @@ class VisionHVPSolver(object):
         self.dataloader = dataloader
         # Make a copy since we will go over it a bunch
         self.dataiter = iter(dataloader) if dataloader else None
-        self.apply = self.apply_batch  # apply_full
         self.closures = closures
 
     def zero_grad(self) -> None:
@@ -38,31 +37,28 @@ class VisionHVPSolver(object):
         self.dataiter = iter(dataloader)
 
     @torch.enable_grad()
-    def grad_batch(self, *, create_graph: bool = False) -> Tuple[Tensor, List[Tensor]]:
+    def grad_batch(self, *, create_graph: bool = False):
         parameters = self.parameters
         losses = self.get_losses()
-        param_grads = [list(torch.autograd.grad(
-            loss, parameters,
-            allow_unused=True, retain_graph=True, create_graph=create_graph)) for loss in losses]
+        param_grads = [list(torch.autograd.grad(loss, parameters, allow_unused=True, retain_graph=True, create_graph=create_graph)) for loss in losses]
         for param_grad in param_grads:
             for i, (param_grad_module, param) in enumerate(zip(param_grad, parameters)):
                 if param_grad_module is None:
                     param_grad[i] = torch.zeros_like(param)
         grads = torch.stack([parameters_to_vector(param_grad) for param_grad in param_grads], dim=0)
-        return grads, losses
+        return grads
 
     @torch.enable_grad()
     def grad_full(self, *, create_graph: bool = False) -> Tensor:
         num_batches = len(self.dataloader)
         grads = None
         for _ in range(num_batches):
-            grads_batch, _ = self.grad_batch(create_graph=create_graph)
+            grads_batch = self.grad_batch(create_graph=create_graph)
             if grads is None:
                 grads = grads_batch
             else:
                 grads.add_(grads_batch)
         grads.div_(num_batches)
-        grads = grads.clone().detach()
         return grads
 
     @torch.enable_grad()
@@ -76,7 +72,7 @@ class VisionHVPSolver(object):
         if grads is None:
             # compute original gradient, tracking computation graph
             self.zero_grad()
-            grads, _ = self.grad_batch(create_graph=True)
+            grads = self.grad_batch(create_graph=True)
             self.zero_grad()
 
         if weights is None:

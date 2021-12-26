@@ -29,7 +29,7 @@ class MINRESKKTSolver(object):
         rhs = weights.view(1, -1).matmul(jacobians).view(-1).clone().detach()
 
         # explore
-        lazy_jacobians = self.hvp_solver.grad_batch(create_graph=True)[0]
+        lazy_jacobians = self.hvp_solver.grad_batch(create_graph=True)
         with self.krylov_solver.solve(lazy_jacobians, jacobians, alphas, rhs) as results:
             direction, _ = results
 
@@ -37,7 +37,7 @@ class MINRESKKTSolver(object):
         self.apply_grad(direction, normalize=True)
 
     @torch.no_grad()
-    def apply_grad(self, direction: Tensor, *, normalize: bool = True) -> None:
+    def apply_grad(self, direction: Tensor, normalize: bool = True) -> None:
         if normalize:
             direction.div_(direction.norm())
         offset = 0
