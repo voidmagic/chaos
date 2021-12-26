@@ -34,7 +34,6 @@ class VisionHVPSolver(object):
         # Make a copy since we will go over it a bunch
         self.dataiter = iter(dataloader) if dataloader else None
         self.apply = self.apply_batch  # apply_full
-        self.grad = self.grad_full
         self.closures = closures
 
     def zero_grad(self) -> None:
@@ -47,7 +46,7 @@ class VisionHVPSolver(object):
         self.dataiter = iter(dataloader)
 
     @torch.enable_grad()
-    def grad_batch(self, *, create_graph: bool = True) -> Tuple[Tensor, List[Tensor]]:
+    def grad_batch(self, *, create_graph: bool = False) -> Tuple[Tensor, List[Tensor]]:
         parameters = self.parameters
         losses = self.get_losses()
         param_grads = [list(torch.autograd.grad(
@@ -75,13 +74,7 @@ class VisionHVPSolver(object):
         return grads
 
     @torch.enable_grad()
-    def apply_batch(
-            self,
-            vec: Tensor,
-            weights: Tensor = None,
-            *,
-            grads: Tensor = None,
-            retain_graph: bool = True) -> Tuple[Tensor, Tensor]:
+    def apply_batch(self, vec: Tensor, weights: Tensor = None, *, grads: Tensor = None, retain_graph: bool = True) -> Tuple[Tensor, Tensor]:
 
         """
         Returns H * vec where H is the hessian of the loss w.r.t.
@@ -108,16 +101,8 @@ class VisionHVPSolver(object):
         return weighted_hvp
 
     @torch.enable_grad()
-    def apply_full(
-            self,
-            vec: Tensor,
-            weights: Tensor = None,
-            *,
-            grads: Tensor = None,
-            num_batches: int = None,
-            retain_graph: bool = False) -> Tensor:
-
-        num_batches = len(self.dataloader) if num_batches is None else num_batches
+    def apply_full(self, vec: Tensor, weights: Tensor = None, *, grads: Tensor = None, retain_graph: bool = False):
+        num_batches = len(self.dataloader)
         weighted_hvp = None
         for _ in range(num_batches):
             weighted_hvp_batch = self.apply_batch(vec, weights, grads=grads, retain_graph=retain_graph)

@@ -12,7 +12,7 @@ from torchvision import transforms
 import torch.utils.data
 
 from tools.ContinuousParetoMTL.pareto.metrics import topk_accuracy
-from tools.ContinuousParetoMTL.pareto.optim import VisionHVPSolver, MINRESKKTSolver
+from tools.ContinuousParetoMTL.pareto.optim import MINRESKKTSolver
 from tools.ContinuousParetoMTL.pareto.datasets import MultiMNIST
 from tools.ContinuousParetoMTL.pareto.networks import MultiLeNet
 from tools.ContinuousParetoMTL.pareto.utils import TopTrace
@@ -51,31 +51,19 @@ def evaluate(network, dataloader, device, closures, header=''):
 def train(start_path, beta):
 
     # prepare hyper-parameters
-
     seed = 42
-
     cuda_enabled = True
     cuda_deterministic = False
-
     batch_size = 2048
     num_workers = 0
-
-    stochastic = False
-    kkt_momentum = 0.0
-    create_graph = False
-    grad_correction = False
     shift = 0.0
     tol = 1e-5
     damping = 0.1
     max_iter = 50
-
     lr = 0.1
     momentum = 0.0
     weight_decay = 0.0
-
     num_steps = 10
-
-    verbose = False
 
     # prepare path
     ckpt_name = start_path.name.split('.')[0]
@@ -133,14 +121,10 @@ def train(start_path, beta):
     criterion = F.cross_entropy
     closures = [lambda n, l, t: criterion(l[0], t[:, 0]), lambda n, l, t: criterion(l[1], t[:, 1])]
 
-    # prepare HVP solver
-    hvp_solver = VisionHVPSolver(network, device, train_loader, closures)
-
     # prepare KKT solver
     kkt_solver = MINRESKKTSolver(
-        network, hvp_solver, device,
-        stochastic=stochastic, kkt_momentum=kkt_momentum, create_graph=create_graph,
-        grad_correction=grad_correction, shift=shift, tol=tol, damping=damping, maxiter=max_iter)
+        network, device, train_loader, closures,
+        shift=shift, tol=tol, damping=damping, maxiter=max_iter)
 
     # prepare optimizer
     optimizer = SGD(network.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)

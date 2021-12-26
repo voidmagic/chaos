@@ -7,24 +7,12 @@ import numpy as np
 
 
 class TopTrace(object):
-    def __init__(
-            self,
-            num_objs: int,
-            *,
-            indent_size: int = 4,
-        ):
-
+    def __init__(self, num_objs: int, *, indent_size: int = 4):
         self.tops = [[] for _ in range(num_objs)]
         self.msgs = [[] for _ in range(num_objs)]
         self.indent_size = indent_size
 
-    def print(
-            self,
-            new_tops: Iterable[float],
-            *,
-            show: bool = True,
-        ):
-
+    def print(self, new_tops: Iterable[float], *, show: bool = True):
         for new_top, top, msg in zip(new_tops, self.tops, self.msgs):
             new_top_msg = f'{new_top * 100.0:.2f}%'
             if top:

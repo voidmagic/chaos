@@ -14,37 +14,28 @@ class MINRESKKTSolver(object):
     def __init__(
             self,
             network: nn.Module,
-            hvp_solver: VisionHVPSolver,
             device: torch.device,
+            train_loader,
+            closures,
             *,
-            stochastic: bool = True,
-            kkt_momentum: float = 0.0,
-            create_graph: bool = False,
-            grad_correction: bool = False,
             shift: float = 0.0,
             tol: float = 1e-5,
             damping: float = 0.0,
             maxiter: int = 50) -> None:
 
+        # prepare HVP solver
+        hvp_solver = VisionHVPSolver(network, device, train_loader, closures)
         krylov_solver = MINRESSolver(network, hvp_solver, device, shift, tol, damping, maxiter)
+
         self.network = network
         self.hvp_solver = hvp_solver
         self.device = device
-        self.kkt_momentum = kkt_momentum
-        self.jacobians_momentum_buffer = None
-        self.alphas_momentum_buffer = None
-        self.create_graph = create_graph
-        self.grad_correction = grad_correction
-        self.stochastic = stochastic
         self.krylov_solver = krylov_solver
-
-    def zero_grad(self) -> None:
-        self.hvp_solver.zero_grad()
 
     def backward(self, weights: Tensor) -> None:
 
         # jacobians alphas rhs
-        jacobians = self.hvp_solver.grad(create_graph=self.create_graph)
+        jacobians = self.hvp_solver.grad_full()
         alphas, _ = find_min_norm_element(jacobians.detach())
         alphas = jacobians.new_tensor(alphas).detach()
         rhs = weights.view(1, -1).matmul(jacobians).view(-1).clone().detach()
