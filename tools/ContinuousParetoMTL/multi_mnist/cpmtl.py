@@ -1,7 +1,5 @@
 import random
 from pathlib import Path
-from termcolor import colored
-
 import numpy as np
 
 import torch
@@ -10,42 +8,11 @@ from torch.optim import SGD
 from torchvision import transforms
 
 import torch.utils.data
-
-from tools.ContinuousParetoMTL.pareto.metrics import topk_accuracy
-from tools.ContinuousParetoMTL.pareto.optim import MINRESKKTSolver
+from tools.ContinuousParetoMTL.multi_mnist.weighted_sum import evaluate
 from tools.ContinuousParetoMTL.pareto.datasets import MultiMNIST
 from tools.ContinuousParetoMTL.pareto.networks import MultiLeNet
 from tools.ContinuousParetoMTL.pareto.utils import TopTrace
-
-
-@torch.no_grad()
-def evaluate(network, dataloader, device, closures, header=''):
-    num_samples = 0
-    losses = np.zeros(2)
-    top1s = np.zeros(2)
-    network.train(False)
-    for images, labels in dataloader:
-        batch_size = len(images)
-        num_samples += batch_size
-        images = images.to(device)
-        labels = labels.to(device)
-        logits = network(images)
-        losses_batch = [c(network, logits, labels).item() for c in closures]
-        losses += batch_size * np.array(losses_batch)
-        top1s[0] += batch_size * topk_accuracy(logits[0], labels[:, 0], k=1)
-        top1s[1] += batch_size * topk_accuracy(logits[1], labels[:, 1], k=1)
-    losses /= num_samples
-    top1s /= num_samples
-
-    loss_msg = '[{}]'.format('/'.join([f'{loss:.6f}' for loss in losses]))
-    top1_msg = '[{}]'.format('/'.join([f'{top1 * 100.0:.2f}%' for top1 in top1s]))
-    msgs = [
-        f'{header}:' if header else '',
-        'loss', colored(loss_msg, 'yellow'),
-        'top@1', colored(top1_msg, 'yellow')
-    ]
-    print(' '.join(msgs))
-    return losses, top1s
+from tools.ContinuousParetoMTL.pareto.optim.kkt_solver import pareto_backward
 
 
 def train(start_path, beta):
@@ -56,10 +23,6 @@ def train(start_path, beta):
     cuda_deterministic = False
     batch_size = 2048
     num_workers = 0
-    shift = 0.0
-    tol = 1e-5
-    damping = 0.1
-    max_iter = 50
     lr = 0.1
     momentum = 0.0
     weight_decay = 0.0
@@ -121,11 +84,6 @@ def train(start_path, beta):
     criterion = F.cross_entropy
     closures = [lambda n, l, t: criterion(l[0], t[:, 0]), lambda n, l, t: criterion(l[1], t[:, 1])]
 
-    # prepare KKT solver
-    kkt_solver = MINRESKKTSolver(
-        network, train_loader, closures,
-        shift=shift, tol=tol, damping=damping, maxiter=max_iter)
-
     # prepare optimizer
     optimizer = SGD(network.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
 
@@ -143,11 +101,8 @@ def train(start_path, beta):
         network.train(True)
         optimizer.zero_grad()
 
-        # 普通的优化：
-        # loss = network(data)
-        # loss.backward()
+        pareto_backward(network, beta, train_loader)
 
-        kkt_solver.backward(beta)
         optimizer.step()
         losses, tops = evaluate(network, test_loader, device, closures, f'{ckpt_name}: {step}/{num_steps}')
         top_trace.print(tops)
