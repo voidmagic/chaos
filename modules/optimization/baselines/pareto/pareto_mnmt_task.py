@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 @register_task("pareto_mnmt")
 class ParetoMultilingualNeuralMachineTranslationTask(TranslationMultiSimpleEpochTask):
-    alpha, last_update_or_start, update_interval = None, 10000, 200
+    alpha, smooth = None, 0.1
+    last_update_or_start, update_interval = 10000, 200
 
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         if update_num > self.last_update_or_start and update_num % self.update_interval == 0:
@@ -31,7 +32,7 @@ class ParetoMultilingualNeuralMachineTranslationTask(TranslationMultiSimpleEpoch
         if self.alpha is not None:
             task_ids = self.infer_task(sample)
             weights = torch.tensor([self.alpha[task_id] for task_id in task_ids]).view(-1, 1)
-            loss = loss.view(len(task_ids), -1) * weights.to(loss.device) * len(self.alpha)
+            loss = loss.view(len(task_ids), -1) * weights.to(loss.device)
         optimizer.backward(loss.sum())
 
         return loss, sample_size, {
@@ -73,7 +74,7 @@ class ParetoMultilingualNeuralMachineTranslationTask(TranslationMultiSimpleEpoch
         gradient_for_each_task_tensor = torch.stack([item[1] for item in gradient_for_each_task_sorted])
         try:
             alpha, _ = find_min_norm_element(gradient_for_each_task_tensor.float(), max_iter=250)
-            self.alpha = {item[0]: a for item, a in zip(gradient_for_each_task_sorted, alpha)}
+            self.alpha = {item[0]: max(a * len(alpha), self.smooth) for item, a in zip(gradient_for_each_task_sorted, alpha)}
             logger.info(f"Reset alpha: {self.alpha}")
         except UnboundLocalError as _:
             logger.info(f"Reset alpha filed.")
