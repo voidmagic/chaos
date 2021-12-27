@@ -17,7 +17,7 @@ class ParetoMultilingualNeuralMachineTranslationTask(TranslationMultiSimpleEpoch
     gradients = []
 
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
-        if update_num > 0 and update_num % 200 == 0:
+        if update_num > 10000 and update_num % 200 == 0:
             self.reset_alpha(model, criterion)
 
         model.train()
@@ -72,10 +72,10 @@ class ParetoMultilingualNeuralMachineTranslationTask(TranslationMultiSimpleEpoch
         gradient_for_each_task_sorted = sorted(gradient_for_each_task.items(), key=lambda item: item[0])
         gradient_for_each_task_tensor = torch.stack([item[1] for item in gradient_for_each_task_sorted])
         try:
-            alpha, _ = find_min_norm_element(gradient_for_each_task_tensor, max_iter=250)
+            alpha, _ = find_min_norm_element(gradient_for_each_task_tensor.float(), max_iter=250)
             self.alpha = {item[0]: a for item, a in zip(gradient_for_each_task_sorted, alpha)}
             logger.info(f"Reset alpha: {self.alpha}")
-        except UnboundLocalError as err:
+        except UnboundLocalError as _:
             logger.info(f"Reset alpha filed.")
 
     def infer_task(self, sample):
