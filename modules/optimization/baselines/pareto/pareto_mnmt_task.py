@@ -65,7 +65,7 @@ class ParetoMultilingualNeuralMachineTranslationTask(TranslationMultiSimpleEpoch
                 for p in model.parameters():
                     if p.requires_grad and p.grad is not None:
                         gradients.append(p.grad.view(-1).data.cpu())
-                gradient_for_each_task[task_id[0]] += torch.cat(gradients)
+                gradient_for_each_task[task_id[0]] += torch.cat(gradients) / len(batch_iterator)
                 model.zero_grad()
             model.train()  # enable dropout
 
