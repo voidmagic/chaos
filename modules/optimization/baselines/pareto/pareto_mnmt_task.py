@@ -13,12 +13,12 @@ logger = logging.getLogger(__name__)
 
 @register_task("pareto_mnmt")
 class ParetoMultilingualNeuralMachineTranslationTask(TranslationMultiSimpleEpochTask):
-    alpha = None
-    gradients = []
+    alpha, last_update_or_start, update_interval = None, 10000, 200
 
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
-        if update_num > 10000 and update_num % 200 == 0:
+        if update_num > self.last_update_or_start and update_num % self.update_interval == 0:
             self.reset_alpha(model, criterion)
+            self.last_update_or_start = update_num
 
         model.train()
         model.set_num_updates(update_num)
