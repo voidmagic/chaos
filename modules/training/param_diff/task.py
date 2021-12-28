@@ -7,6 +7,7 @@ from fairseq.tasks import register_task
 from fairseq.tasks.multilingual_translation import MultilingualTranslationTask
 from fairseq.trainer import Trainer
 from fairseq.criterions import cross_entropy
+
 from modules.training.param_diff.view import ModelView
 
 logger = logging.getLogger(__name__)
@@ -24,23 +25,22 @@ class ParameterDifferentiationTask(MultilingualTranslationTask):
 
     def record_gradient(self, model):
         logger.info("Start accumulating gradient")
-
         criterion = cross_entropy.CrossEntropyCriterion(task=self, sentence_avg=False)
-        batch_iterator = self.dataset_to_epoch_iter[self.dataset('valid')].next_epoch_itr(shuffle=False)
+        for lang_pair, dataset in self.dataset(self.args.valid_subset).datasets.items():
+            batch_iterator = self.get_batch_iterator(
+                dataset=dataset, max_tokens=self.args.max_tokens_valid, seed=self.args.seed).next_epoch_itr()
 
-        model.eval()
-        for i, sample in enumerate(batch_iterator):
-            sample = utils.move_to_cuda(sample)
-            for lang_pair in self.lang_pairs:
+            model.eval()  # disable dropout
+            for sample in batch_iterator:
+                sample = utils.move_to_cuda(sample)
                 model.zero_grad()
-                if sample is None or sample.get(lang_pair, None) is None:
-                    continue
-                loss, _, _ = criterion(model.models[lang_pair], sample[lang_pair])
+                loss, _, _ = criterion(model.models[lang_pair], sample)
                 loss = loss / len(batch_iterator)
                 loss.backward()
                 self.view.accum_gradient(lang_pair)
                 model.zero_grad()
-        model.train()
+            model.train()  # enable dropout
+        logger.info("End accumulating gradient")
 
     def begin_valid_epoch(self, epoch, model):
         trainer = get_trainer()
