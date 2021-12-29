@@ -18,17 +18,8 @@ def name2module(module, name):
 
 
 def get_module_names(model: nn.Module):
-    # for projection level
-    # all_param_names = [param.rstrip('.weight') for param in all_param_names if 'weight' in param]
     all_param_names = [name for name in dict(model.named_parameters()).keys() if 'layers' in name]
-
-    def _get_layer_name(_param_name):
-        _param_name = _param_name.split('.')
-        _layer_index = _param_name.index('layers')  # encoder.layers.0, _layer_index=1, take [:3]=[0,1,2]
-        return '.'.join(_param_name[:_layer_index + 2])
-
-    all_param_names = [_get_layer_name(param) for param in all_param_names]
-    all_param_names = list(OrderedDict.fromkeys(all_param_names))
+    all_param_names = [param.rstrip('.weight') for param in all_param_names if 'weight' in param]
     return all_param_names
 
 
