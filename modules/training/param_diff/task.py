@@ -1,11 +1,10 @@
 import logging
 from fairseq import utils
+from .view import ModelView
 from fairseq.trainer import Trainer
 from fairseq.tasks import register_task
-from fairseq.criterions import cross_entropy
 from fairseq.tasks.multilingual_translation import MultilingualTranslationTask
 
-from modules.training.param_diff.view import ModelView
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +32,6 @@ class ParameterDifferentiationTask(MultilingualTranslationTask):
                 loss, _, _ = criterion(model.models[lang_pair], sample)
                 loss = loss / len(batch_iterator)
                 loss.backward()
-                break
             self.view.accum_gradient(lang_pair)
             model.zero_grad()
         model.train()  # enable dropout

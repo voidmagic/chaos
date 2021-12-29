@@ -1,8 +1,7 @@
-import logging
 import copy
 import torch
+import logging
 import torch.nn as nn
-from collections import OrderedDict
 from sklearn.cluster import AgglomerativeClustering
 
 
