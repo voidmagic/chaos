@@ -10,6 +10,7 @@ import logging
 import torch
 from fairseq import utils
 from fairseq.tasks import register_task
+from torch.nn.utils import parameters_to_vector
 from fairseq.tasks.translation_multi_simple_epoch import TranslationMultiSimpleEpochTask
 
 from modules.optimization.baselines.pareto.min_norm_solver import find_min_norm_element
@@ -70,6 +71,8 @@ class ParetoMultilingualNeuralMachineTranslationTask(TranslationMultiSimpleEpoch
     def reset_alpha(self, model, criterion):
 
         gradient_for_each_task = collections.defaultdict(float)
+        model.eval()  # disable dropout
+        model.zero_grad()
 
         # calculate jacobians for each task
         for dataset in self.dataset(self.args.valid_subset).datasets:
@@ -81,22 +84,20 @@ class ParetoMultilingualNeuralMachineTranslationTask(TranslationMultiSimpleEpoch
                 seed=self.args.seed,
             ).next_epoch_itr(shuffle=False)
 
-            model.eval()  # disable dropout
+            task_id = dataset.src.token
             for sample in batch_iterator:
                 sample = utils.move_to_cuda(sample)
-                task_id = self.infer_task(sample)
-                assert len(set(task_id)) == 1  # only contains one task
-                model.zero_grad()
-                # 计算这个batch对应的loss
                 loss, _, _ = criterion(model, sample)
+                loss = loss / len(batch_iterator)
                 loss.backward()
-                gradients = []
-                for p in model.parameters():
-                    if p.requires_grad and p.grad is not None:
-                        gradients.append(p.grad.view(-1).data.cpu())
-                gradient_for_each_task[task_id[0]] += torch.cat(gradients) / len(batch_iterator)
-                model.zero_grad()
-            model.train()  # enable dropout
+            gradients = []
+            for p in model.parameters():
+                if p.requires_grad and p.grad is not None:
+                    gradients.append(p.grad)
+            gradient_for_each_task[task_id] = parameters_to_vector(gradients)
+
+        model.train()  # enable dropout
+        model.zero_grad()
 
         gradient_for_each_task_sorted = sorted(gradient_for_each_task.items(), key=lambda item: item[0])
         gradient_for_each_task_tensor = torch.stack([item[1] for item in gradient_for_each_task_sorted])
