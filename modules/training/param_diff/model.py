@@ -45,6 +45,12 @@ class ParameterDifferentiationModel(MultilingualTransformerModel):
         return cls(encoders, decoders)
 
 
-@register_model_architecture("parameter_differentiation_model", "parameter_differentiation_base_model")
+@register_model_architecture("parameter_differentiation_model", "parameter_differentiation_tiny_model")
 def base_parameter_differentiation_architecture(args):
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 128)
+    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 256)
+    args.encoder_layers = getattr(args, "encoder_layers", 3)
+    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 4)
+    args.decoder_layers = getattr(args, "decoder_layers", 3)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 4)
     base_architecture(args)
