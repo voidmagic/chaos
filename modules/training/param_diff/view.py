@@ -59,7 +59,7 @@ class ModelView:
 
         # 按距离排序，从大到小，-1表示距离最小
         # sorted by distance from large to small. -1 means the smallest distance.
-        sorted_divergences = [d for d in sorted(divergences.items(), key=lambda item: -item[1][1])]
+        sorted_divergences = [d for d in sorted(divergences.items(), key=lambda item: -item[1][1]) if d[1][1] > 0]
         for best_name, (best_lang_pairs, best_score) in sorted_divergences[:2]:
             logger.info('Split shared parameters: {}'.format(best_name))
             logger.info('This parameter is shared by {}'.format(','.join(best_lang_pairs[0] + best_lang_pairs[1])))

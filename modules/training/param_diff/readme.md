@@ -1,40 +1,68 @@
-A minimum running example of parameter differentiation.
+The implementation of [Parameter Differentiation based Multilingual Neural Machine Translation](https://arxiv.org/abs/2112.13619).
 
-Requirement:
+
+# Requirements
+
 ```
-apex
-fairseq
-scikit-learn
-pytorch
+pip install fairseq==0.10.2
+conda install scikit-learn
+conda install pytorch==1.7.1 torchvision==0.8.2 torchaudio==0.7.2 cudatoolkit=10.1 -c pytorch
+```
+
+# Usage
+
+1. Prepare data following [fairseq](https://github.com/pytorch/fairseq/tree/main/examples/translation#multilingual-translation):
+
+```
+unzip data-bpe.zip
+
+mkdir -p data-bin && cut -f1 data-bpe/bpe.vocab | tail -n +4 | sed "s/$/ 100/g" > data-bin/dict.en.txt
+
+for lang in es pt; do
+    fairseq-preprocess --source-lang en --target-lang $lang \
+        --trainpref data-bpe/train.en-$lang \
+        --validpref data-bpe/valid.en-$lang \
+        --testpref  data-bpe/test.en-$lang  \
+        --destdir data-bin \
+        --srcdict data-bin/dict.en.txt \
+        --tgtdict data-bin/dict.en.txt 
+done
+
 ```
 
 
-
-1. Process data following `https://github.com/pytorch/fairseq`.
 2. Training:
-```
-data_bin=    # data path 
-lang_pairs=  # comma separated language pairs
 
-fairseq-train $data_path \
-    --task parameter_differentiation_task --lang-pairs $lang_pairs --encoder-langtok tgt \
-    --criterion label_smoothed_cross_entropy --label-smoothing 0.1 \
-    --optimizer adam --lr 0.0015 --adam-betas '(0.9,0.98)' \
-    --lr-scheduler inverse_sqrt --warmup-updates 4000 --warmup-init-lr 1e-07 \
-    --arch parameter_differentiation_base_model \
-    --max-tokens 8192 \
-    --user-dir $PWD 
+
+Multilingual NMT:
 ```
+fairseq-train data-bin --user-dir . --max-tokens 4096 --max-update 20000 \
+    --task multilingual_translation --lang-pairs es-en,pt-en  \
+    --arch parameter_differentiation_tiny_model --share-all-embeddings --share-encoders --share-decoders  \
+    --lr-scheduler inverse_sqrt --optimizer adam --lr 0.0015 --validate-interval 4
+```
+
+
+Parameter differentiation based MNMT
+```
+fairseq-train data-bin --user-dir . --max-tokens 4096 --max-update 20000  \
+    --task parameter_differentiation_task --lang-pairs es-en,pt-en  \
+    --arch parameter_differentiation_tiny_model --share-all-embeddings  \
+    --lr-scheduler inverse_sqrt --optimizer adam --lr 0.0015 --validate-interval 4
+```
+
 
 3. Decoding
 ```
-source_lang=
-target_lang=
+fairseq-generate data-bin --user-dir . --max-tokens 4096 --quiet \
+    --task parameter_differentiation_task --lang-pairs es-en,pt-en \
+    --remove-bpe sentencepiece --source-lang es --target-lang en \
+    --path checkpoints/checkpoint_last.pt
 
-fairseq-generate $data_path \
-    --task parameter_differentiation_task --lang-pairs $lang_pairs --encoder-langtok tgt \
-    --beam 4 --lenpen 0.6 --remove-bpe sentencepiece \
-    --source-lang $source_lang --target-lang $target_lang > result.$source_lang-$target_lang.txt
+fairseq-generate data-bin --user-dir . --max-tokens 4096 --quiet \
+    --task parameter_differentiation_task --lang-pairs es-en,pt-en \
+    --remove-bpe sentencepiece --source-lang pt --target-lang en \
+    --path checkpoints/checkpoint_last.pt
 ```
 
 
