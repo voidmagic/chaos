@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 class ParameterDifferentiationXdTask(SampledMultilingualTask):
     _view: ModelView = None
     _initial_size = None
-    _trained_step = 0
 
     @property
     def view(self):
@@ -58,20 +57,6 @@ class ParameterDifferentiationXdTask(SampledMultilingualTask):
         logger.info("num. model params after: {}".format(sum(p.numel() for p in model.parameters())))
         self.view.clear_gradient()
         get_trainer()._optimizer = None
-
-    def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
-        self.begin_valid_epoch(epoch=0, model=model)
-
-        current_size = sum(p.numel() for p in model.parameters())
-        if self._initial_size and current_size / self._initial_size < 1.5:
-            ignore_grad = True
-
-        if self._trained_step > 5:
-            ignore_grad = True
-
-        if not ignore_grad:
-            self._trained_step += 1
-        return super(ParameterDifferentiationXdTask, self).train_step(sample, model, criterion, optimizer, update_num, ignore_grad)
 
     def load_dataset(self, split, epoch=1, **kwargs):
         # 与gmnmt兼容
