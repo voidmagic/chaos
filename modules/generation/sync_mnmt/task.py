@@ -19,6 +19,7 @@ class Config:
     weight_path = None
     current_layer = -1
     fusion_last = False
+    train_cla = False
 
 
 @register_task("sync_mnmt")
@@ -32,6 +33,11 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
         parser.add_argument('--non-proj', action='store_true')
         parser.add_argument('--weight-path', default=None, type=str)
         parser.add_argument('--fusion-last', action='store_true')
+        parser.add_argument('--train-cla', action='store_true')
+
+    def build_model(self, cfg):
+        model = super(SyncTranslationTask, self).build_model(cfg)
+        return model
 
     @classmethod
     def setup_task(cls, args, **kwargs):
@@ -43,6 +49,7 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
         Config.non_proj = args.non_proj
         Config.weight_path = args.weight_path
         Config.fusion_last = args.fusion_last
+        Config.train_cla = args.train_cla
         return task
 
     def load_dataset(self, split, **kwargs):

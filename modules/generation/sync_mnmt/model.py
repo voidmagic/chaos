@@ -20,6 +20,12 @@ class SyncMultilingualTransformer(TransformerModel):
         decoder_out = self.decoder(prev_output_tokens, encoder_out=encoder_out)
         return decoder_out
 
+    def load_state_dict(self, state_dict, strict=True, model_cfg=None, args=None):
+        for name, parameter in self.named_parameters():
+            if name in state_dict and Config.train_cla:
+                parameter.requires_grad = False
+        return super(SyncMultilingualTransformer, self).load_state_dict(state_dict, strict=False)
+
 
 class Decoder(TransformerDecoder):
     def build_decoder_layer(self, args, no_encoder_attn=False):
