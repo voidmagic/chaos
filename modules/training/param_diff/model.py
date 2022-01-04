@@ -1,6 +1,6 @@
 from fairseq.models import register_model, register_model_architecture
 from fairseq.models.multilingual_transformer import MultilingualTransformerModel
-from fairseq.models.transformer import base_architecture
+from fairseq.models.transformer import base_architecture, transformer_wmt_en_de_big
 
 
 @register_model('parameter_differentiation_model')
@@ -54,3 +54,8 @@ def base_parameter_differentiation_architecture(args):
     args.decoder_layers = getattr(args, "decoder_layers", 3)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 4)
     base_architecture(args)
+
+
+@register_model_architecture("parameter_differentiation_model", "parameter_differentiation_big_model")
+def big_parameter_differentiation_architecture(args):
+    transformer_wmt_en_de_big(args)
