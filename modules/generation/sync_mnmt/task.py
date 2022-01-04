@@ -36,6 +36,7 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
     @classmethod
     def setup_task(cls, args, **kwargs):
         task = super(SyncTranslationTask, cls).setup_task(args)
+        task.args = args
         Config.n_lang = len(args.lang_pairs)
         Config.manner = args.manner
         Config.tanh_weight = args.tanh_weight
