@@ -66,7 +66,7 @@ class SyncTranslationTask(GoogleMultilingualTranslationTask):
             tgt_prepend_dataset = PrependTokenDataset(tgt_raw_dataset, self.src_dict.index('__2<{}>__'.format(tgt)))
             return src_raw_dataset, tgt_prepend_dataset
 
-        if split == 'test' and self.args.source_lang != self.args.target_lang:
+        if split == self.args.gen_subset and self.args.source_lang != self.args.target_lang:
             src_dataset, tgt_dataset = load_data(self.args.source_lang, self.args.target_lang)
             self.datasets[split] = MultiParallelDataset(src_dataset, [tgt_dataset], self.src_dict)
             Config.infer_target = self.src_dict.index('__2<{}>__'.format(self.args.target_lang))
