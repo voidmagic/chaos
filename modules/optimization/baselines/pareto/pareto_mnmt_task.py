@@ -72,7 +72,6 @@ class ParetoMultilingualNeuralMachineTranslationTask(TranslationMultiSimpleEpoch
 
         gradient_for_each_task = collections.defaultdict(float)
         model.eval()  # disable dropout
-        model.zero_grad()
 
         # calculate jacobians for each task
         for dataset in self.dataset(self.args.valid_subset).datasets:
@@ -84,6 +83,7 @@ class ParetoMultilingualNeuralMachineTranslationTask(TranslationMultiSimpleEpoch
                 seed=self.args.seed,
             ).next_epoch_itr(shuffle=False)
 
+            model.zero_grad()
             task_id = dataset.src.token
             for sample in batch_iterator:
                 sample = utils.move_to_cuda(sample)
@@ -103,7 +103,7 @@ class ParetoMultilingualNeuralMachineTranslationTask(TranslationMultiSimpleEpoch
         gradient_for_each_task_tensor = torch.stack([item[1] for item in gradient_for_each_task_sorted])
         try:
             alpha, _ = find_min_norm_element(gradient_for_each_task_tensor.float(), max_iter=250)
-            self.alpha = {item[0]: max(a * len(alpha), self.smooth) for item, a in zip(gradient_for_each_task_sorted, alpha)}
+            self.alpha = {item[0]: max(a, self.smooth) * len(alpha) for item, a in zip(gradient_for_each_task_sorted, alpha)}
             logger.info(f"Reset alpha: {self.alpha}")
         except UnboundLocalError as _:
             logger.info(f"Reset alpha filed.")
