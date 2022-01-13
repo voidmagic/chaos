@@ -50,7 +50,9 @@ def fuse_gradients(g1, g2, fuse_manner):
     if fuse_manner == 'average':
         return (g1 + g2) / 2
     if fuse_manner == 'pareto':
-        gamma, cost = _min_norm_element_from2(torch.dot(g1, g1), torch.dot(g1, g2), torch.dot(g2, g2))
+        gamma, cost = _min_norm_element_from2(torch.dot(g1.float(), g1.float()),
+                                              torch.dot(g1.float(), g2.float()),
+                                              torch.dot(g2.float(), g2.float()))
         return gamma * g1 + (1 - gamma) * g2
     raise NotImplementedError(fuse_manner)
 
