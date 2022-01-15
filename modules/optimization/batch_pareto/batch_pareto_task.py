@@ -9,7 +9,7 @@ from fairseq.tasks.translation import TranslationTask, TranslationConfig
 @dataclass
 class BatchParetoConfig(TranslationConfig):
     fuse_manner: str = field(
-        default='average',
+        default='none',
         metadata={
             "help": "source language",
         },
@@ -43,34 +43,65 @@ def _min_norm_element_from2(v1v1: torch.Tensor, v1v2: torch.Tensor, v2v2: torch.
     return gamma, cost
 
 
-def fuse_gradients(g1, g2, fuse_manner):
-    if g1 is None:
+def fuse_gradients_single(g1, g2, fuse_manner):
+    vanilla_grad = 0.5 * g1 + 0.5 * g2
+    if fuse_manner == 'none':
         return g2
-
     if fuse_manner == 'average':
-        return (g1 + g2) / 2
+        return vanilla_grad
     if fuse_manner == 'pareto':
         gamma, cost = _min_norm_element_from2(torch.dot(g1.float(), g1.float()),
                                               torch.dot(g1.float(), g2.float()),
                                               torch.dot(g2.float(), g2.float()))
-        return gamma * g1 + (1 - gamma) * g2
+        pareto_grad = gamma * g1 + (1 - gamma) * g2
+        norm_diff = vanilla_grad.float().norm(p=2) / pareto_grad.float().norm(p=2)
+        print(norm_diff)
+        return pareto_grad * norm_diff
+
     raise NotImplementedError(fuse_manner)
+
+
+def fuse_gradients(g1, g2, fuse_manner):
+    if g1 is None:
+        return g2
+
+    if isinstance(g1, dict):
+        fused = {}
+        for key, value in g1.items():
+            fused[key] = fuse_gradients_single(g1[key], g2[key], fuse_manner)
+        return fused
+    else:
+        return fuse_gradients_single(g1, g2, fuse_manner)
 
 
 def catch_gradients(model):
     gradients = []
-    for p in model.parameters():
-        if p.requires_grad and p.grad is not None:
+    for name, p in model.named_parameters():
+        if 'layer' in name:
             gradients.append(p.grad)
     return parameters_to_vector(gradients)
 
 
+def catch_gradients_dict(model):
+    gradients = {}
+    for name, p in model.named_parameters():
+        if p.requires_grad and p.grad is not None:
+            gradients[name] = parameters_to_vector(p.grad)
+    return gradients
+
+
 def assign_gradients(model, gradients):
     offset = 0
-    for p in model.parameters():
-        numel = p.numel()
-        p.grad = gradients[offset:offset + numel].view_as(p.data).clone()
-        offset += numel
+    for name, p in model.named_parameters():
+        if 'layer' in name:
+            numel = p.numel()
+            p.grad = gradients[offset:offset + numel].view_as(p.data).clone()
+            offset += numel
+
+
+def assign_gradients_dict(model, gradients):
+    for name, p in model.named_parameters():
+        p.grad = gradients[name].view_as(p.data).clone()
 
 
 @register_task('batch_pareto_task', dataclass=BatchParetoConfig)
@@ -92,6 +123,11 @@ class BatchParetoTask(TranslationTask):
         gradients = catch_gradients(model)
         fused_gradients = fuse_gradients(self.last_gradient, gradients, self.fuse_manner)
         assign_gradients(model, fused_gradients)
+
+        # gradients = catch_gradients_dict(model)
+        # fused_gradients = fuse_gradients(self.last_gradient, gradients, self.fuse_manner)
+        # assign_gradients_dict(model, fused_gradients)
+
         self.last_gradient = gradients
 
         return loss, sample_size, logging_output
