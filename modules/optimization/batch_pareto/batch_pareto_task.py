@@ -55,7 +55,6 @@ def fuse_gradients_single(g1, g2, fuse_manner):
                                               torch.dot(g2.float(), g2.float()))
         pareto_grad = gamma * g1 + (1 - gamma) * g2
         norm_diff = vanilla_grad.float().norm(p=2) / pareto_grad.float().norm(p=2)
-        print(norm_diff)
         return pareto_grad * norm_diff
 
     raise NotImplementedError(fuse_manner)
@@ -77,31 +76,18 @@ def fuse_gradients(g1, g2, fuse_manner):
 def catch_gradients(model):
     gradients = []
     for name, p in model.named_parameters():
-        if 'layer' in name:
+        if p.grad is not None:
             gradients.append(p.grad)
-    return parameters_to_vector(gradients)
-
-
-def catch_gradients_dict(model):
-    gradients = {}
-    for name, p in model.named_parameters():
-        if p.requires_grad and p.grad is not None:
-            gradients[name] = parameters_to_vector(p.grad)
-    return gradients
+    return parameters_to_vector(gradients) if gradients else None
 
 
 def assign_gradients(model, gradients):
     offset = 0
     for name, p in model.named_parameters():
-        if 'layer' in name:
-            numel = p.numel()
-            p.grad = gradients[offset:offset + numel].view_as(p.data).clone()
-            offset += numel
-
-
-def assign_gradients_dict(model, gradients):
-    for name, p in model.named_parameters():
-        p.grad = gradients[name].view_as(p.data).clone()
+        numel = p.numel()
+        p.grad = gradients[offset:offset + numel].view_as(p.data).clone()
+        offset += numel
+    assert offset == gradients.numel()
 
 
 @register_task('batch_pareto_task', dataclass=BatchParetoConfig)
@@ -115,19 +101,23 @@ class BatchParetoTask(TranslationTask):
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         model.train()
         model.set_num_updates(update_num)
+
+        self.last_gradient = catch_gradients(model)
+        model.zero_grad()
         loss, sample_size, logging_output = criterion(model, sample)
         if ignore_grad:
             loss *= 0
         optimizer.backward(loss)
 
-        gradients = catch_gradients(model)
-        fused_gradients = fuse_gradients(self.last_gradient, gradients, self.fuse_manner)
-        assign_gradients(model, fused_gradients)
+        if self.last_gradient is not None:
+            gradients = catch_gradients(model)
+            fused_gradients = fuse_gradients(self.last_gradient, gradients, self.fuse_manner)
+            assign_gradients(model, fused_gradients)
 
-        # gradients = catch_gradients_dict(model)
+        # gradients = catch_gradients(model)
         # fused_gradients = fuse_gradients(self.last_gradient, gradients, self.fuse_manner)
-        # assign_gradients_dict(model, fused_gradients)
+        # assign_gradients(model, fused_gradients)
 
-        self.last_gradient = gradients
+        # self.last_gradient = gradients
 
         return loss, sample_size, logging_output
