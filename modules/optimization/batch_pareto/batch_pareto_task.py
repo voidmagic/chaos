@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 import torch
+import torch.nn.functional as func
 from torch.nn.utils import parameters_to_vector
 from fairseq.tasks import register_task
 from fairseq.tasks.translation import TranslationTask, TranslationConfig
@@ -43,19 +44,31 @@ def _min_norm_element_from2(v1v1: torch.Tensor, v1v2: torch.Tensor, v2v2: torch.
     return gamma, cost
 
 
+phi1_last = 0
+beta = 0.01
+
+
 def fuse_gradients_single(g1, g2, fuse_manner):
-    vanilla_grad = 0.5 * g1 + 0.5 * g2
     if fuse_manner == 'none':
         return g2
     if fuse_manner == 'average':
-        return vanilla_grad
+        return 0.5 * g1 + 0.5 * g2
     if fuse_manner == 'pareto':
         gamma, cost = _min_norm_element_from2(torch.dot(g1.float(), g1.float()),
                                               torch.dot(g1.float(), g2.float()),
                                               torch.dot(g2.float(), g2.float()))
         pareto_grad = gamma * g1 + (1 - gamma) * g2
-        norm_diff = vanilla_grad.float().norm(p=2) / pareto_grad.float().norm(p=2)
-        return pareto_grad * norm_diff
+        return pareto_grad
+    if fuse_manner == 'pcgrad':
+        g1p = g1 - torch.dot(g1.float(), g2.float()) / torch.dot(g2.float(), g2.float()) * g2
+        return g1p + g2
+    if fuse_manner == 'vaccine':
+        phi = func.cosine_similarity(g1.float(), g2.float(), dim=0)
+        global phi1_last
+        phi1 = (1 - beta) * phi1_last + beta * phi
+        phi1_last = phi1
+        g1p = g1 + torch.norm(g1.float()) * (phi1 * torch.sqrt(1 - phi * phi) - phi * (torch.sqrt(1 - phi1 * phi1))) / (torch.norm(g2.float()) * torch.sqrt(1 - phi1 * phi1)) * g2
+        return g1p + g2
 
     raise NotImplementedError(fuse_manner)
 
