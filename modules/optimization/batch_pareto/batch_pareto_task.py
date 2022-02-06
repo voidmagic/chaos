@@ -115,22 +115,22 @@ class BatchParetoTask(TranslationTask):
         model.train()
         model.set_num_updates(update_num)
 
-        self.last_gradient = catch_gradients(model)
-        model.zero_grad()
+        # self.last_gradient = catch_gradients(model)
+        # model.zero_grad()
         loss, sample_size, logging_output = criterion(model, sample)
         if ignore_grad:
             loss *= 0
         optimizer.backward(loss)
 
-        if self.last_gradient is not None:
-            gradients = catch_gradients(model)
-            fused_gradients = fuse_gradients(self.last_gradient, gradients, self.fuse_manner)
-            assign_gradients(model, fused_gradients)
+        # if self.last_gradient is not None:
+        #     gradients = catch_gradients(model)
+        #     fused_gradients = fuse_gradients(self.last_gradient, gradients, self.fuse_manner)
+        #     assign_gradients(model, fused_gradients)
 
-        # gradients = catch_gradients(model)
-        # fused_gradients = fuse_gradients(self.last_gradient, gradients, self.fuse_manner)
-        # assign_gradients(model, fused_gradients)
+        gradients = catch_gradients(model)
+        fused_gradients = fuse_gradients(self.last_gradient, gradients, self.fuse_manner)
+        assign_gradients(model, fused_gradients)
 
-        # self.last_gradient = gradients
+        self.last_gradient = gradients
 
         return loss, sample_size, logging_output
