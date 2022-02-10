@@ -1,5 +1,16 @@
 from fairseq.models import FairseqMultiModel, register_model, register_model_architecture
 from fairseq.models.speech_to_text.s2t_transformer import S2TTransformerModel, base_architecture
+import os
+
+
+def build_model_shared(modules, share_keys):
+    if share_keys == "universal":
+        modules = {key: list(modules.values())[0] for key in modules.keys()}
+    elif share_keys == "individual":
+        pass
+    else:
+        raise NotImplementedError(share_keys)
+    return modules
 
 
 @register_model("speech_transformer")
@@ -8,24 +19,13 @@ class S2TMultiModel(FairseqMultiModel):
         super().__init__(encoders, decoders)
 
     @classmethod
-    def add_args(cls, parser):
-        return S2TTransformerModel.add_args(parser)
-
-    @classmethod
     def build_model(cls, args, task):
-        model_keys = args.model_keys
-
-        model = S2TTransformerModel.build_model(args, task)
-
-        encoders = {
-            key: model.encoder
-            for key in model_keys.split(",")
-        }
-
-        decoders = {
-            key: model.decoder
-            for key in model_keys.split(",")
-        }
+        model_keys = os.environ['ST_MODEL_KEY']
+        model = {key: S2TTransformerModel.build_model(args, task) for key in model_keys.split(",")}
+        encoders = {key: model[key].encoder for key in model_keys.split(",")}
+        decoders = {key: model[key].decoder for key in model_keys.split(",")}
+        encoders = build_model_shared(encoders, "universal")
+        decoders = build_model_shared(decoders, os.environ['ST_SHARE_KEY'])
         return cls(encoders, decoders)
 
     def max_positions(self):

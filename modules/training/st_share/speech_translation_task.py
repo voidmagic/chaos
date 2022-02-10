@@ -9,13 +9,6 @@ from .round_robin_st_dataset import RoundRobinSTDataset
 
 @register_task("speech_translation")
 class SpeechTranslation(SpeechToTextTask):
-    model_keys = []
-
-    @classmethod
-    def add_args(cls, parser):
-        parser.add_argument("--model-keys", type=str, default="es,de,fr,it,nl,pt,ro,ru")
-        super(SpeechTranslation, cls).add_args(parser)
-
     def load_dataset(self, split, epoch=1, combine=False, **kwargs):
         is_train_split = split.startswith("train")
         is_valid_split = split.startswith("dev")
