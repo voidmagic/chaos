@@ -2,10 +2,8 @@ import logging
 from pathlib import Path
 from typing import Dict, List
 
-import torch
 from fairseq.data.audio.data_cfg import S2TDataConfig
-from fairseq.data.audio.speech_to_text_dataset import SpeechToTextDatasetCreator, SpeechToTextDataset, \
-    SpeechToTextDatasetItem
+from fairseq.data.audio.speech_to_text_dataset import SpeechToTextDatasetCreator, SpeechToTextDataset
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +25,7 @@ class FastSpeechToTextDatasetCreator(SpeechToTextDatasetCreator):
         audio_root = Path(cfg.audio_root)
         ids = [s[cls.KEY_ID] for s in samples]
         audio_paths = [(audio_root / s[cls.KEY_AUDIO]).as_posix() for s in samples]
+        audio_paths = [path_mapping(path) for path in audio_paths]
         n_frames = [int(s[cls.KEY_N_FRAMES]) for s in samples]
         tgt_texts = [s[cls.KEY_TGT_TEXT] for s in samples]
         src_texts = [s.get(cls.KEY_SRC_TEXT, cls.DEFAULT_SRC_TEXT) for s in samples]
@@ -34,7 +33,7 @@ class FastSpeechToTextDatasetCreator(SpeechToTextDatasetCreator):
         src_langs = [s.get(cls.KEY_SRC_LANG, cls.DEFAULT_LANG) for s in samples]
         tgt_langs = [s.get(cls.KEY_TGT_LANG, cls.DEFAULT_LANG) for s in samples]
         logger.info("Build FastSpeechToTextDataset")
-        return FastSpeechToTextDataset(
+        return SpeechToTextDataset(
             split_name,
             is_train_split,
             cfg,
@@ -54,30 +53,11 @@ class FastSpeechToTextDatasetCreator(SpeechToTextDatasetCreator):
         )
 
 
-class FastSpeechToTextDataset(SpeechToTextDataset):
-    def __getitem__(self, index: int) -> SpeechToTextDatasetItem:
-        if self.is_train_split:
-            source = torch.load("{}/item.{}".format("/tmp/must_data", index))
-            # item = torch.load("{}/item.{}".format("/mnt/hdd/qwang/must_data", index))
-        else:
-            source = self._get_source_audio(index)
-            source = self.pack_frames(source)
-
-        target = None
-        if self.tgt_texts is not None:
-            tokenized = self.get_tokenized_tgt_text(index)
-            target = self.tgt_dict.encode_line(
-                tokenized, add_if_not_exist=False, append_eos=self.append_eos
-            ).long()
-            if self.cfg.prepend_tgt_lang_tag:
-                lang_tag_idx = self.get_lang_tag_idx(
-                    self.tgt_langs[index], self.tgt_dict
-                )
-                target = torch.cat((torch.LongTensor([lang_tag_idx]), target), 0)
-
-        speaker_id = None
-        if self.speaker_to_id is not None:
-            speaker_id = self.speaker_to_id[self.speakers[index]]
-        return SpeechToTextDatasetItem(
-            index=index, source=source, target=target, speaker_id=speaker_id
-        )
+def path_mapping(original_path):
+    original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-fr", "/data/tmp/en-fr")
+    original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-it", "/data/tmp/en-it")
+    original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-nl", "/tmp/en-nl")
+    original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-pt", "/tmp/en-pt")
+    original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-ro", "/home/supercip/mustc/en-ro")
+    original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-ru", "/home/supercip/mustc/en-ru")
+    return original_path
