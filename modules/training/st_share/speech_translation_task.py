@@ -1,10 +1,10 @@
 from collections import OrderedDict, defaultdict
 
 import torch
-from fairseq.data.audio.speech_to_text_dataset import SpeechToTextDatasetCreator
 from fairseq.tasks import register_task
 from fairseq.tasks.speech_to_text import SpeechToTextTask
 from .round_robin_st_dataset import RoundRobinSTDataset
+from .st_dataset import FastSpeechToTextDatasetCreator
 
 
 @register_task("speech_translation")
@@ -16,7 +16,7 @@ class SpeechTranslation(SpeechToTextTask):
             split = split.replace(":", ",")
         pre_tokenizer = self.build_tokenizer(self.args)
         bpe_tokenizer = self.build_bpe(self.args)
-        self.datasets[split] = SpeechToTextDatasetCreator.from_tsv(
+        self.datasets[split] = FastSpeechToTextDatasetCreator.from_tsv(
             self.args.data,
             self.data_cfg,
             split,
