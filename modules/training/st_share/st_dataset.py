@@ -54,8 +54,8 @@ class FastSpeechToTextDatasetCreator(SpeechToTextDatasetCreator):
 
 
 def path_mapping(original_path):
-    original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-fr", "/data/tmp/en-fr")
-    original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-it", "/data/tmp/en-it")
+    original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-fr", "/tmp/en-fr")
+    original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-it", "/tmp/en-it")
     original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-nl", "/tmp/en-nl")
     original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-pt", "/tmp/en-pt")
     original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-ro", "/home/supercip/mustc/en-ro")
