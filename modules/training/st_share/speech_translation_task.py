@@ -40,6 +40,9 @@ class SpeechTranslation(SpeechToTextTask):
         agg_loss, agg_sample_size, agg_logging_output = 0.0, 0.0, defaultdict(float)
         for model_key in sample.keys():
             loss, sample_size, logging_output = criterion(model.models[model_key], sample[model_key])
+            if ignore_grad:
+                loss *= 0
+            optimizer.backward(loss)
             agg_loss += loss.detach().item()
             agg_sample_size += sample_size
             for k in logging_output:
