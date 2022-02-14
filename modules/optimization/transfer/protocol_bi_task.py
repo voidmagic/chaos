@@ -1,10 +1,16 @@
 import torch
+from dataclasses import dataclass
 from fairseq.tasks import register_task
-from fairseq.tasks.translation_multi_simple_epoch import TranslationMultiSimpleEpochTask
+from fairseq.tasks.translation import TranslationTask, TranslationConfig
 
 
-@register_task("protocol_multi_task")
-class ProtocolMultiTask(TranslationMultiSimpleEpochTask):
+@dataclass
+class ProtocolBiTaskConfig(TranslationConfig):
+    _name = 'protocol_bi_task'
+
+
+@register_task("protocol_bi_task", dataclass=ProtocolBiTaskConfig)
+class ProtocolBiTask(TranslationTask):
     def valid_step(self, sample, model, criterion):
         model.eval()
         with torch.no_grad():
