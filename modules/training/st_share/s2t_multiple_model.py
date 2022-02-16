@@ -58,4 +58,6 @@ def s2t_transformer_m(args):
     args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 8)
     args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
     args.dropout = getattr(args, "dropout", 0.15)
+    args.dropout = getattr(args, "activation_dropout", 0.15)
+    args.dropout = getattr(args, "attention_dropout", 0.15)
     base_architecture(args)
