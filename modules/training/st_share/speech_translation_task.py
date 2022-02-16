@@ -3,8 +3,8 @@ from collections import OrderedDict, defaultdict
 import torch
 from fairseq.tasks import register_task
 from fairseq.tasks.speech_to_text import SpeechToTextTask
-from .round_robin_st_dataset import RoundRobinSTDataset
 from .st_dataset import FastSpeechToTextDatasetCreator
+from ...basics.sample_mnmt.dataset import MultilingualSampledDataset
 
 
 @register_task("speech_translation")
@@ -31,34 +31,25 @@ class SpeechTranslation(SpeechToTextTask):
 
         if is_train_split or is_valid_split:
             dataset_dict = OrderedDict([(dataset.split.split("_")[1], dataset) for dataset in self.datasets[split].datasets])
-            self.datasets[split] = RoundRobinSTDataset(dataset_dict)
+            self.datasets[split] = MultilingualSampledDataset(dataset_dict)
             if is_valid_split:
                 self.datasets[split.replace(",", ":")] = self.datasets[split]
 
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         model.train()
-        agg_loss, agg_sample_size, agg_logging_output = 0.0, 0.0, defaultdict(float)
+        model.set_num_updates(update_num)
         for model_key in sample.keys():
-            loss, sample_size, logging_output = criterion(model.models[model_key], sample[model_key])
-            if ignore_grad:
-                loss *= 0
-            optimizer.backward(loss)
-            agg_loss += loss.detach().item()
-            agg_sample_size += sample_size
-            for k in logging_output:
-                agg_logging_output[k] += logging_output[k]
-                agg_logging_output[f"{model_key}:{k}"] += logging_output[k]
-        return agg_loss, agg_sample_size, agg_logging_output
+            if sample[model_key] is not None:
+                loss, sample_size, logging_output = criterion(model.models[model_key], sample[model_key])
+                if ignore_grad:
+                    loss *= 0
+                optimizer.backward(loss)
+                return loss, sample_size, logging_output
 
     def valid_step(self, sample, model, criterion):
         model.eval()
         with torch.no_grad():
-            agg_loss, agg_sample_size, agg_logging_output = 0.0, 0.0, defaultdict(float)
             for model_key in sample.keys():
-                loss, sample_size, logging_output = criterion(model.models[model_key], sample[model_key])
-                agg_loss += loss.data.item()
-                agg_sample_size += sample_size
-                for k in logging_output:
-                    agg_logging_output[k] += logging_output[k]
-                    agg_logging_output[f"{model_key}:{k}"] += logging_output[k]
-        return agg_loss, agg_sample_size, agg_logging_output
+                if sample[model_key] is not None:
+                    loss, sample_size, logging_output = criterion(model.models[model_key], sample[model_key])
+                    return loss, sample_size, logging_output
