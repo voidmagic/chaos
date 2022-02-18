@@ -3,7 +3,9 @@ import math
 import numpy as np
 
 bilingual_prop_path = "/home/qwang/030-transfer/003-models/411-bilingual-iwslt/en-zh/zh.prop"
+bilingual_prop_path = "/home/qwang/030-transfer/003-models/421-bilingual-iwslt/en-zh/zh.prop"
 eszh_prop_path = "/home/qwang/030-transfer/003-models/410-multilingual-iwslt/eszh-o2m/zh.prop"
+eszh_prop_path = "/home/qwang/030-transfer/003-models/420-multilingual-iwslt/eszh-o2m/zh.prop"
 
 
 def parse_file(filename):
