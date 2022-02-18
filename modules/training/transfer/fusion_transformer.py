@@ -35,7 +35,7 @@ class FusionTransformerModel(TransformerModel):
         overall_model.encoder.gate_linear_2 = nn.Linear(args.encoder_embed_dim, args.encoder_embed_dim, bias=True)
 
         for name, p in overall_model.named_parameters():
-            if 'encoder' in name and 'gate_linear' not in name:
+            if 'aux_encoder' in name:
                 p.requires_grad = False
 
         return overall_model
