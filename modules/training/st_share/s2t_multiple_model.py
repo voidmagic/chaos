@@ -8,6 +8,25 @@ def build_model_shared(modules, share_keys):
         modules = {key: list(modules.values())[0] for key in modules.keys()}
     elif share_keys == "individual":
         pass
+    elif share_keys == "partial":
+        # Partial Sharing means that the embedding, encoder, decoder’s key, and value weights are shared.
+        first_module = list(modules.values())[0]
+        for key, module in modules.items():
+            module.embed_tokens = first_module.embed_tokens
+            module.output_projection = first_module.output_projection
+            for layer in range(6):
+                module.layers[layer].encoder_attn.k_proj = first_module.layers[layer].encoder_attn.k_proj
+                module.layers[layer].encoder_attn.v_proj = first_module.layers[layer].encoder_attn.v_proj
+                module.layers[layer].self_attn.k_proj = first_module.layers[layer].self_attn.k_proj
+                module.layers[layer].self_attn.v_proj = first_module.layers[layer].self_attn.v_proj
+    elif share_keys == "deeper":
+        # Partial Sharing means that the embedding, encoder, decoder’s key, and value weights are shared.
+        first_module = list(modules.values())[0]
+        for key, module in modules.items():
+            module.embed_tokens = first_module.embed_tokens
+            module.output_projection = first_module.output_projection
+            for layer in range(3, 6):
+                module.layers[layer] = first_module.layers[layer]
     else:
         raise NotImplementedError(share_keys)
     return modules
