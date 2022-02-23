@@ -15,7 +15,7 @@ def parse_args():
 
 def read_file(filename):
     with open(filename[0]) as f0, open(filename[1]) as f1:
-        sentences = {src.strip(): tgt.strip() for src, tgt in zip(f0, f1)}
+        sentences = {src.strip(): tgt.strip() for src, tgt in zip(f0, f1) if len(src.strip()) > 0 and len(tgt.strip()) > 0}
     return sentences, set([sentence for sentence in sentences.keys()])
 
 
