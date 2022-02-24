@@ -64,12 +64,5 @@ def path_mapping(original_path):
         original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-ro", "/home/supercip/mustc/en-ro")
         original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-ru", "/home/supercip/mustc/en-ru")
     else:
-
-        original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-fr", "/tmp/en-de")
-        original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-it", "/tmp/en-es")
-        original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-nl", "/tmp/en-fr")
-        original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-pt", "/tmp/en-it")
-        original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-nl", "/tmp/en-nl")
-        original_path = original_path.replace("/mnt/hdd/qwang/029-must/002-dataset/001-mustc/MUSTC/en-pt", "/tmp/en-pt")
         original_path = original_path.replace("/mnt/hdd/qwang", os.path.expanduser('~'))
     return original_path
