@@ -108,6 +108,15 @@ def build_model_shared(modules, share_keys, encoder_nps=0, decoder_nps=0):
                 module.layers[layer].self_attn.v_proj = first_module.layers[layer].self_attn.v_proj
                 module.layers[layer].self_attn.q_proj = first_module.layers[layer].self_attn.q_proj
                 module.layers[layer].self_attn.out_proj = first_module.layers[layer].self_attn.out_proj
+    elif share_keys == "partial6":
+        # share: L1 L2
+        first_module = list(modules.values())[0]
+        for key, module in modules.items():
+            module.embed_tokens = first_module.embed_tokens
+            module.output_projection = first_module.output_projection
+            for layer in range(6):
+                module.layers[layer].fc1 = first_module.layers[layer].fc1
+                module.layers[layer].fc2 = first_module.layers[layer].fc2
     elif share_keys.startswith("random"):
         # all
         random.seed(0)
