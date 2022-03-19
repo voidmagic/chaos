@@ -1,11 +1,12 @@
 import torch
 from sklearn.metrics.pairwise import cosine_similarity
 
-folder = "/mnt/hdd/qwang/029-must/004-analyze/001-gradients"
+folder = "/mnt/hdd/qwang/029-must/004-analyze/002-txt-gradients"
 
 langs = "de es fr it nl pt ro ru".split()
 
 prefix = "decoder.layers.5"
+
 
 a = []
 for lang1 in langs:
