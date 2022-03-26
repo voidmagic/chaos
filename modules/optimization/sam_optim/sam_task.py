@@ -2,7 +2,6 @@ import collections
 import logging
 
 import torch
-from fairseq.optim import FP16Optimizer
 from fairseq.tasks import register_task
 from fairseq.tasks.translation_multi_simple_epoch import TranslationMultiSimpleEpochTask
 
@@ -20,12 +19,14 @@ class SamTranslationMultiSimpleEpochTask(TranslationMultiSimpleEpochTask):
     @staticmethod
     def add_args(parser):
         parser.add_argument('--sam-adaptive', default='False', type=str)
+        parser.add_argument('--sam-sampling', default='False', type=str)
         parser.add_argument('--sam-rho', default=0.05, type=float)
         TranslationMultiSimpleEpochTask.add_args(parser)
 
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         adaptive = self.args.sam_adaptive == "True"
         sam_rho = self.args.sam_rho
+        sampling = self.args.sam_sampling == "True"
 
         def step():
             model.train()
