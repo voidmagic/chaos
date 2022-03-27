@@ -34,32 +34,49 @@ class AffinityTask(TranslationMultiSimpleEpochTask):
                     data_buffer_size=self.args.data_buffer_size).next_epoch_itr()
                 self.args.sampling_method = old_method
                 for sample in batch_iterator:
-                    self.validation_batches.append([valid_key, utils.move_to_cuda(sample)])
+                    self.validation_batches.append([valid_key, sample])
         return random.choice(self.validation_batches)
 
     @torch.no_grad()
     def calculate_affinity(self, model, criterion):
         if self.last_batch is not None:
             # 上次计算loss的batch，计算基于last_sample参数更新后的loss变化
-            loss, _, _ = criterion(model, self.last_batch)
-            loss_diff = 1 - loss / self.last_loss
+            loss, _, _ = criterion(model, utils.move_to_cuda(self.last_batch))
+            loss_diff = (1 - loss / self.last_loss).cpu().data.clone()
             # 保存为一个affinity
             self.save_to_affinity(loss_diff)
 
         # 随机搞一个batch，计算其loss
         self.last_key, self.last_batch = self.get_random_batch()
-        self.last_loss, _, _ = criterion(model, self.last_batch)
+        self.last_loss, _, _ = criterion(model, utils.move_to_cuda(self.last_batch))
+        self.last_loss = self.last_loss.data.clone()
 
     def save_to_affinity(self, loss_diff):
         if dist.is_initialized():
             # multi gpu training
             output = [torch.zeros(0) for _ in range(dist.get_world_size())]
-            dist.all_gather_object(output, self.last_sample["id"])
-            instance_ids = torch.cat([tensor.to(output[dist.get_rank()].device) for tensor in output], dim=0)
+            dist.all_gather_object(output, self.last_sample["id"].cpu())
+            instance_ids = torch.cat(output, dim=0).tolist()
+            output = [torch.zeros(0) for _ in range(dist.get_world_size())]
+            dist.all_gather_object(output, self.last_sample["net_input"]["src_tokens"][:, 0].cpu())
+            language_ids = torch.cat(output, dim=0).tolist()
+            output = ["" for _ in range(dist.get_world_size())]
+            dist.all_gather_object(output, self.last_key)
+            last_keys = output
+            output = [0.0 for _ in range(dist.get_world_size())]
+            dist.all_gather_object(output, loss_diff)
+            loss_diffs = output
         else:
             # single gpu training
-            instance_ids = self.last_sample["id"]
-        print("Affinity | ", instance_ids.cpu().tolist(), self.last_key, float(loss_diff.cpu()), sep=" | ")
+            instance_ids = self.last_sample["id"].cpu().tolist()
+            language_ids = self.last_sample["net_input"]["src_tokens"][:, 0].cpu().tolist()
+            last_keys = [self.last_key]
+            loss_diffs = [loss_diff]
+
+        language_strs = self.source_dictionary.string(language_ids).split()
+        assert len(language_strs) == len(instance_ids)
+        for last_key, loss_diff in zip(last_keys, loss_diffs):
+            logger.info("Affinity | " + str(language_strs) + " | " + str(instance_ids) + " | " + last_key + " | " + str(float(loss_diff)))
 
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         self.calculate_affinity(model, criterion)
