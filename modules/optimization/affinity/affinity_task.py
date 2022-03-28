@@ -20,6 +20,7 @@ class AffinityTask(TranslationMultiSimpleEpochTask):
 
     def get_random_batch(self):
         if self.validation_batches is None:
+            random.seed(0)
             self.validation_batches = []
             datasets, _ = self.data_manager.load_split_datasets("valid", True)
             for valid_key, dataset in datasets:
@@ -35,25 +36,24 @@ class AffinityTask(TranslationMultiSimpleEpochTask):
                     data_buffer_size=self.args.data_buffer_size).next_epoch_itr()
                 self.args.sampling_method = old_method
                 for sample in batch_iterator:
-                    self.validation_batches.append([valid_key, sample])
+                    self.validation_batches.append([valid_key, utils.move_to_cuda(sample)])
         return random.choice(self.validation_batches)
 
     @torch.no_grad()
     def calculate_affinity(self, model, criterion):
-        criterion = cross_entropy.CrossEntropyCriterion(task=self, sentence_avg=False)
         model.eval()
         if self.last_batch is not None:
             # 上次计算loss的batch，计算基于last_sample参数更新后的loss变化
-            _, _, logging_output = criterion(model, utils.move_to_cuda(self.last_batch))
-            loss = logging_output["loss"] / logging_output["ntokens"]
+            _, _, logging_output = criterion(model, self.last_batch)
+            loss = (logging_output["loss"] / logging_output["ntokens"]).cpu().data.clone()
             loss_diff = (1 - loss / self.last_loss).cpu().data.clone()
             # 保存为一个affinity
             self.save_to_affinity(loss_diff)
 
         # 随机搞一个batch，计算其loss
         self.last_key, self.last_batch = self.get_random_batch()
-        self.last_loss, _, logging_output = criterion(model, utils.move_to_cuda(self.last_batch))
-        self.last_loss = (logging_output["loss"] / logging_output["ntokens"]).data.clone()
+        _, _, logging_output = criterion(model, self.last_batch)
+        self.last_loss = (logging_output["loss"] / logging_output["ntokens"]).cpu().data.clone()
 
     def save_to_affinity(self, loss_diff):
         if dist.is_initialized():
