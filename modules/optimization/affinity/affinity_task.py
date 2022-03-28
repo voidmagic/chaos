@@ -4,6 +4,7 @@ import random
 import torch
 import torch.distributed as dist
 from fairseq import utils
+from fairseq.criterions import cross_entropy
 from fairseq.tasks import register_task
 from fairseq.tasks.translation_multi_simple_epoch import TranslationMultiSimpleEpochTask
 
@@ -39,17 +40,20 @@ class AffinityTask(TranslationMultiSimpleEpochTask):
 
     @torch.no_grad()
     def calculate_affinity(self, model, criterion):
+        criterion = cross_entropy.CrossEntropyCriterion(task=self, sentence_avg=False)
+        model.eval()
         if self.last_batch is not None:
             # 上次计算loss的batch，计算基于last_sample参数更新后的loss变化
-            loss, _, _ = criterion(model, utils.move_to_cuda(self.last_batch))
+            _, _, logging_output = criterion(model, utils.move_to_cuda(self.last_batch))
+            loss = logging_output["loss"] / logging_output["ntokens"]
             loss_diff = (1 - loss / self.last_loss).cpu().data.clone()
             # 保存为一个affinity
             self.save_to_affinity(loss_diff)
 
         # 随机搞一个batch，计算其loss
         self.last_key, self.last_batch = self.get_random_batch()
-        self.last_loss, _, _ = criterion(model, utils.move_to_cuda(self.last_batch))
-        self.last_loss = self.last_loss.data.clone()
+        self.last_loss, _, logging_output = criterion(model, utils.move_to_cuda(self.last_batch))
+        self.last_loss = (logging_output["loss"] / logging_output["ntokens"]).data.clone()
 
     def save_to_affinity(self, loss_diff):
         if dist.is_initialized():
@@ -80,11 +84,6 @@ class AffinityTask(TranslationMultiSimpleEpochTask):
 
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         self.calculate_affinity(model, criterion)
-        model.train()
-        model.set_num_updates(update_num)
-        loss, sample_size, logging_output = criterion(model, sample)
-        if ignore_grad:
-            loss *= 0
-        optimizer.backward(loss)
+        loss, sample_size, logging_output = super(AffinityTask, self).train_step(sample, model, criterion, optimizer, update_num, ignore_grad)
         self.last_sample = sample
         return loss, sample_size, logging_output
