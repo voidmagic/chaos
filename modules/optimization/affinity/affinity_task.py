@@ -46,41 +46,52 @@ class AffinityTask(TranslationMultiSimpleEpochTask):
             # 上次计算loss的batch，计算基于last_sample参数更新后的loss变化
             _, _, logging_output = criterion(model, self.last_valid_sample)
             loss = (logging_output["loss"] / logging_output["ntokens"]).cpu().data.clone()
-            loss_diff_valid = (1 - loss / self.last_valid_loss).cpu().data.clone()
             # 保存为一个affinity
-            self.save_to_affinity(loss_diff_valid)
+            self.save_to_affinity(self.last_valid_loss, loss)
 
         # 随机搞一个batch，计算其loss
         self.last_key, self.last_valid_sample = self.get_random_batch()
         _, _, logging_output = criterion(model, self.last_valid_sample)
         self.last_valid_loss = (logging_output["loss"] / logging_output["ntokens"]).cpu().data.clone()
 
-    def save_to_affinity(self, loss_diff):
+    def save_to_affinity(self, loss_before, loss_after):
         if dist.is_initialized():
-            # multi gpu training
+            # multi gpu training, gather training sample IDs
             output = [torch.zeros(0) for _ in range(dist.get_world_size())]
             dist.all_gather_object(output, self.last_train_sample["id"].cpu())
             instance_ids = torch.cat(output, dim=0).tolist()
+
+            # gather training sample languages
             output = [torch.zeros(0) for _ in range(dist.get_world_size())]
             dist.all_gather_object(output, self.last_train_sample["net_input"]["src_tokens"][:, 0].cpu())
             language_ids = torch.cat(output, dim=0).tolist()
+
+            # gather validation key
             output = ["" for _ in range(dist.get_world_size())]
             dist.all_gather_object(output, self.last_key)
             last_keys = output
+
+            # gather last loss
             output = [0.0 for _ in range(dist.get_world_size())]
-            dist.all_gather_object(output, loss_diff)
-            loss_diffs = output
+            dist.all_gather_object(output, loss_before)
+            loss_befores = output
+
+            # gather this loss
+            output = [0.0 for _ in range(dist.get_world_size())]
+            dist.all_gather_object(output, loss_after)
+            loss_afters = output
         else:
             # single gpu training
             instance_ids = self.last_train_sample["id"].cpu().tolist()
             language_ids = self.last_train_sample["net_input"]["src_tokens"][:, 0].cpu().tolist()
             last_keys = [self.last_key]
-            loss_diffs = [loss_diff]
+            loss_befores = [loss_before]
+            loss_afters = [loss_after]
 
         language_strs = self.source_dictionary.string(language_ids).split()
         assert len(language_strs) == len(instance_ids)
-        for last_key, loss_diff in zip(last_keys, loss_diffs):
-            logger.info("Affinity | " + str(language_strs) + " | " + str(instance_ids) + " | " + last_key + " | " + str(float(loss_diff)))
+        for last_key, loss_before, loss_after in zip(last_keys, loss_befores, loss_afters):
+            logger.info("Affinity | " + str(language_strs) + " | " + str(instance_ids) + " | " + last_key + " | " + str(float(loss_before)) + " | " + str(float(loss_after)))
 
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         self.calculate_affinity(model, criterion)
