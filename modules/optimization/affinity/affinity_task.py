@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 class AffinityTask(TranslationMultiSimpleEpochTask):
     validation_batches = None
     affinities = []
-    last_batch, last_key, last_loss = None, None, None
-    last_sample = None
+    last_valid_sample, last_key, last_valid_loss = None, None, None
+    last_train_sample, last_train_loss = None, None
 
     def get_random_batch(self):
         if self.validation_batches is None:
@@ -42,27 +42,27 @@ class AffinityTask(TranslationMultiSimpleEpochTask):
     @torch.no_grad()
     def calculate_affinity(self, model, criterion):
         model.eval()
-        if self.last_batch is not None:
+        if self.last_valid_sample is not None:
             # 上次计算loss的batch，计算基于last_sample参数更新后的loss变化
-            _, _, logging_output = criterion(model, self.last_batch)
+            _, _, logging_output = criterion(model, self.last_valid_sample)
             loss = (logging_output["loss"] / logging_output["ntokens"]).cpu().data.clone()
-            loss_diff = (1 - loss / self.last_loss).cpu().data.clone()
+            loss_diff_valid = (1 - loss / self.last_valid_loss).cpu().data.clone()
             # 保存为一个affinity
-            self.save_to_affinity(loss_diff)
+            self.save_to_affinity(loss_diff_valid)
 
         # 随机搞一个batch，计算其loss
-        self.last_key, self.last_batch = self.get_random_batch()
-        _, _, logging_output = criterion(model, self.last_batch)
-        self.last_loss = (logging_output["loss"] / logging_output["ntokens"]).cpu().data.clone()
+        self.last_key, self.last_valid_sample = self.get_random_batch()
+        _, _, logging_output = criterion(model, self.last_valid_sample)
+        self.last_valid_loss = (logging_output["loss"] / logging_output["ntokens"]).cpu().data.clone()
 
     def save_to_affinity(self, loss_diff):
         if dist.is_initialized():
             # multi gpu training
             output = [torch.zeros(0) for _ in range(dist.get_world_size())]
-            dist.all_gather_object(output, self.last_sample["id"].cpu())
+            dist.all_gather_object(output, self.last_train_sample["id"].cpu())
             instance_ids = torch.cat(output, dim=0).tolist()
             output = [torch.zeros(0) for _ in range(dist.get_world_size())]
-            dist.all_gather_object(output, self.last_sample["net_input"]["src_tokens"][:, 0].cpu())
+            dist.all_gather_object(output, self.last_train_sample["net_input"]["src_tokens"][:, 0].cpu())
             language_ids = torch.cat(output, dim=0).tolist()
             output = ["" for _ in range(dist.get_world_size())]
             dist.all_gather_object(output, self.last_key)
@@ -72,8 +72,8 @@ class AffinityTask(TranslationMultiSimpleEpochTask):
             loss_diffs = output
         else:
             # single gpu training
-            instance_ids = self.last_sample["id"].cpu().tolist()
-            language_ids = self.last_sample["net_input"]["src_tokens"][:, 0].cpu().tolist()
+            instance_ids = self.last_train_sample["id"].cpu().tolist()
+            language_ids = self.last_train_sample["net_input"]["src_tokens"][:, 0].cpu().tolist()
             last_keys = [self.last_key]
             loss_diffs = [loss_diff]
 
@@ -85,5 +85,5 @@ class AffinityTask(TranslationMultiSimpleEpochTask):
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         self.calculate_affinity(model, criterion)
         loss, sample_size, logging_output = super(AffinityTask, self).train_step(sample, model, criterion, optimizer, update_num, ignore_grad)
-        self.last_sample = sample
+        self.last_train_sample, self.last_train_loss = sample, (logging_output["loss"] / logging_output["ntokens"]).cpu().data.clone()
         return loss, sample_size, logging_output
