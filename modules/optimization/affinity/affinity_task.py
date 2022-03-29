@@ -20,7 +20,10 @@ class AffinityTask(TranslationMultiSimpleEpochTask):
 
     def get_random_batch(self):
         if self.validation_batches is None:
-            random.seed(0)
+            if dist.is_initialized():
+                random.seed(dist.get_rank())
+            else:
+                random.seed(0)
             self.validation_batches = []
             datasets, _ = self.data_manager.load_split_datasets("valid", True)
             for valid_key, dataset in datasets:
