@@ -1,7 +1,9 @@
+import math
+
 import tqdm
 import numpy as np
 
-root_path = "/home/qwang/027-optim/003-models/210-multilingual-ted/diverse/o2m/proportional"
+root_path = "/home/qwang/027-optim/003-models/210-multilingual-ted-2/diverse/o2m/proportional"
 log_path = f"{root_path}/log.txt"
 
 
@@ -37,7 +39,8 @@ all_languages, start, end = remove_common(list(all_languages))
 affinity_matrix = {lang1: {lang2: [] for lang2 in all_languages} for lang1 in all_languages}
 
 
-num_steps, step_start, step_end = 0, 17500, 25000
+num_steps, step_start, step_end = 0, 0, 50000
+diff_sum = 0
 with open(log_path) as f:
     for line in tqdm.tqdm(f.readlines()):
         if "Affinity" not in line or "modules.optimization.affinity.affinity_task" not in line:
@@ -47,16 +50,19 @@ with open(log_path) as f:
             languages = line.strip().split(" | ")[4].strip("['] ").split("', '")
             languages = [lang.strip('_') for lang in languages]
             target = line.strip().split(" | ")[6][start:end]
-            affinity = float(line.strip().split(" | ")[7])
+            loss_before = float(line.strip().split(" | ")[7])
+            loss_after = float(line.strip().split(" | ")[8])
+            loss_differ = float(line.strip().split(" | ")[9])
+            diff_sum += (loss_before - loss_after)
             for lang in languages:
-                affinity_matrix[target][lang].append(affinity)
-
-print("\t\t\t" + "\t\t\t\t".join(sorted(affinity_matrix.keys())))
+                affinity_matrix[target][lang].append((loss_before - loss_after) / len(languages))
+print(diff_sum)
+print("\t" + "\t".join(sorted(affinity_matrix.keys())))
 for key1 in sorted(affinity_matrix.keys()):
-    print(key1, end="    ")
+    print(key1, end="\t")
     for key2 in sorted(affinity_matrix[key1].keys()):
-        affinity_matrix[key1][key2] = np.mean(affinity_matrix[key1][key2] or [0])
-        print("%.8f" % float(affinity_matrix[key1][key2]), end="\t\t")
+        affinity_matrix[key1][key2] = np.sum(affinity_matrix[key1][key2] or [0])
+        print("%.8f" % float(affinity_matrix[key1][key2]), end="\t")
     print()
 
 
