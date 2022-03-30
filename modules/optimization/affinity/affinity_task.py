@@ -20,13 +20,11 @@ class AffinityTask(TranslationMultiSimpleEpochTask):
 
     def get_random_batch(self):
         if self.validation_batches is None:
-            if dist.is_initialized():
-                random.seed(dist.get_rank())
-            else:
-                random.seed(0)
+            random.seed(dist.get_rank() if dist.is_initialized() else 0)
             self.validation_batches = []
             datasets, _ = self.data_manager.load_split_datasets("valid", True)
             for valid_key, dataset in datasets:
+                lang_validation_batches = []
                 old_method, self.args.sampling_method = self.args.sampling_method, "RoundRobin"
                 batch_iterator = self.get_batch_iterator(
                     dataset=dataset, max_tokens=self.args.max_tokens_valid,
@@ -39,8 +37,9 @@ class AffinityTask(TranslationMultiSimpleEpochTask):
                     data_buffer_size=self.args.data_buffer_size).next_epoch_itr()
                 self.args.sampling_method = old_method
                 for sample in batch_iterator:
-                    self.validation_batches.append([valid_key, utils.move_to_cuda(sample)])
-        return random.choice(self.validation_batches)
+                    lang_validation_batches.append([valid_key, utils.move_to_cuda(sample)])
+                self.validation_batches.append(lang_validation_batches)
+        return random.choice(random.choice(self.validation_batches))
 
     @torch.no_grad()
     def calculate_affinity(self, model, criterion):
