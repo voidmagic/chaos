@@ -3,7 +3,7 @@ import math
 import tqdm
 import numpy as np
 
-root_path = "/home/qwang/027-optim/003-models/210-multilingual-ted-2/diverse/o2m/proportional"
+root_path = "/home/qwang/027-optim/003-models/210-multilingual-ted/diverse/m2o/proportional"
 log_path = f"{root_path}/log.txt"
 
 
@@ -39,7 +39,7 @@ all_languages, start, end = remove_common(list(all_languages))
 affinity_matrix = {lang1: {lang2: [] for lang2 in all_languages} for lang1 in all_languages}
 
 
-num_steps, step_start, step_end = 0, 0, 50000
+num_steps, step_start, step_end = 0, 0, math.inf
 diff_sum = 0
 with open(log_path) as f:
     for line in tqdm.tqdm(f.readlines()):
