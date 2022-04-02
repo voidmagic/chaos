@@ -59,26 +59,28 @@ class MultiSamTranslationMultiSimpleEpochTask(TranslationMultiSimpleEpochTask):
             optimizer.backward(loss)
             return loss, sample_size, logging_output
 
-        # first step, get gradient
-        step(self.get_random_batch())
+        try:
+            # first step, get gradient
+            step(self.get_random_batch())
+            with torch.no_grad():
+                grad_norm = optimizer.clip_grad_norm(max_norm=0.0)
+                scale = sam_rho / (grad_norm + 1e-12)
+                for p in model.parameters():
+                    if not p.requires_grad:
+                        continue
+                    self.grad_state[p]["old_p"] = p.data.clone()
+                    e_w = (torch.pow(p, 2) if adaptive else 1.0) * p.grad * scale
+                    p.add_(e_w)  # climb to the local maximum "w + e(w)"
+                optimizer.zero_grad()
 
-        with torch.no_grad():
-            grad_norm = optimizer.clip_grad_norm(max_norm=0.0)
-            scale = sam_rho / (grad_norm + 1e-12)
-            for p in model.parameters():
-                if not p.requires_grad:
-                    continue
-                self.grad_state[p]["old_p"] = p.data.clone()
-                e_w = (torch.pow(p, 2) if adaptive else 1.0) * p.grad * scale
-                p.add_(e_w)  # climb to the local maximum "w + e(w)"
+            loss, sample_size, logging_output = step(sample)
+
+            with torch.no_grad():
+                for p in model.parameters():
+                    if not p.requires_grad:
+                        continue
+                    p.data = self.grad_state[p]["old_p"]  # get back to "w" from "w + e(w)"
+        except OverflowError:
             optimizer.zero_grad()
-
-        loss, sample_size, logging_output = step(sample)
-
-        with torch.no_grad():
-            for p in model.parameters():
-                if not p.requires_grad:
-                    continue
-                p.data = self.grad_state[p]["old_p"]  # get back to "w" from "w + e(w)"
-
+            loss, sample_size, logging_output = super(MultiSamTranslationMultiSimpleEpochTask, self).train_step(sample, model, criterion, optimizer, update_num, ignore_grad)
         return loss, sample_size, logging_output
