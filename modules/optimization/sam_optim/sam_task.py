@@ -19,14 +19,12 @@ class SamTranslationMultiSimpleEpochTask(TranslationMultiSimpleEpochTask):
     @staticmethod
     def add_args(parser):
         parser.add_argument('--sam-adaptive', default='False', type=str)
-        parser.add_argument('--sam-sampling', default='False', type=str)
         parser.add_argument('--sam-rho', default=0.05, type=float)
         TranslationMultiSimpleEpochTask.add_args(parser)
 
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         adaptive = self.args.sam_adaptive == "True"
         sam_rho = self.args.sam_rho
-        sampling = self.args.sam_sampling == "True"
 
         def step():
             model.train()
