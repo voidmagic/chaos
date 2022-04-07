@@ -5,32 +5,30 @@ import re
 from scipy.cluster.hierarchy import dendrogram, linkage, cut_tree
 from matplotlib import pyplot as plt
 import numpy as np
-import ast
 
-root_path = "/home/qwang/027-optim/003-models/621-emb-tedx/o2m-m1.0-l5.0"
+
+root_path = "/home/qwang/027-optim/003-models/601-multi-tedx/m2o"
 model_path = f"{root_path}/checkpoint_average.pt"
 log_path = f"{root_path}/log.txt"
 
 model = torch.load(model_path)
-embedding = model["model"]["encoder.weight_s"].T.tolist()
+embedding = model["model"]["encoder.embed_tokens.weight"]
 
-languages = []
+key_embedding = {}
 with open(log_path) as f:
     for line in f:
-        if "parsed the language list as they are ordered in the option" not in line:
+        if "fairseq.data.multilingual.multilingual_data_manager" not in line or "src_langtok" not in line:
             continue
-        index = re.findall(r".*: (.*)", line)[0]
-        index = ast.literal_eval(index)
-        languages += index
-
-key_embedding = dict(list(zip(languages, embedding))[1:])
+        key = re.findall(r".*main:(.*) src.*", line)[0]
+        index = re.findall(r".*src_langtok: (.*);.*", line)[0]
+        key_embedding[key] = embedding[int(index)].tolist()
 
 Z = linkage(np.array(list(key_embedding.values())), 'complete', metric="cosine")
 fig = plt.figure(figsize=(15, 10))
 dn = dendrogram(Z, labels=np.array(list(key_embedding.keys())))
 plt.show()
 
-clusters = cut_tree(Z, n_clusters=4)
+clusters = cut_tree(Z, n_clusters=6)
 langs = list(key_embedding.keys())
 
 language_clusters = collections.defaultdict(list)
@@ -39,10 +37,3 @@ for cls, lang in zip(clusters.T[0], langs):
 
 for key, value in language_clusters.items():
     print(key, value)
-
-
-for lang, emb in key_embedding.items():
-    print(lang, end="\t")
-    for e in emb:
-        print(e, end="\t")
-    print()
