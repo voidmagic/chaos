@@ -63,7 +63,12 @@ class AffinityMTask(MultilingualTranslationTask):
             # gather validation key
             output = ["" for _ in range(dist.get_world_size())]
             dist.all_gather_object(output, self.last_valid_key)
-            last_keys = output
+            last_valid_keys = output
+
+            # gather train key
+            output = ["" for _ in range(dist.get_world_size())]
+            dist.all_gather_object(output, self.last_train_key)
+            last_train_keys = output
 
             # gather last loss
             output = [0.0 for _ in range(dist.get_world_size())]
@@ -82,14 +87,14 @@ class AffinityMTask(MultilingualTranslationTask):
         else:
             # single gpu training
             instance_ids = self.last_train_sample["id"].cpu().tolist()
-            last_keys = [self.last_valid_key]
+            last_valid_keys = [self.last_valid_key]
+            last_train_keys = [self.last_train_key]
             loss_befores = [loss_before]
             loss_afters = [loss_after]
             loss_diffs = [loss_diff]
 
-        language_strs = self.last_train_key
-        for last_key, loss_before, loss_after, loss_diff in zip(last_keys, loss_befores, loss_afters, loss_diffs):
-            logger.info("Affinity | " + str(language_strs) + " | " + str(instance_ids) + " | " + last_key + " | " + str(float(loss_before)) + " | " + str(float(loss_after)) + " | " + str(float(loss_diff)))
+        for last_train_key, last_valid_key, loss_before, loss_after, loss_diff in zip(last_train_keys, last_valid_keys, loss_befores, loss_afters, loss_diffs):
+            logger.info("Affinity | " + last_train_key + " | " + str(instance_ids) + " | " + last_valid_key + " | " + str(float(loss_before)) + " | " + str(float(loss_after)) + " | " + str(float(loss_diff)))
 
     def train_step(self, sample, model, criterion, optimizer, update_num, ignore_grad=False):
         self.calculate_affinity(model, criterion)
