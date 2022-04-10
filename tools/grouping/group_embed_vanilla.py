@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 
-root_path = "/home/qwang/027-optim/003-models/601-multi-tedx/m2o"
+root_path = "/home/qwang/027-optim/003-models/601-multi-tedx/o2m"
 model_path = f"{root_path}/checkpoint_average.pt"
 log_path = f"{root_path}/log.txt"
 

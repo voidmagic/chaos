@@ -44,105 +44,12 @@ for line in matrix[1:]:
     line = line.strip().split()
     aux_lang = line[0]
     for target_lang, score in zip(header, line[1:]):
-        affinity[target_lang][aux_lang] = float(score)
+        affinity[target_lang][aux_lang] = float(score)  # if target_lang != aux_lang else 1.0
 
 for lang1 in header:
     print(lang1, end=":\t")
-    for lang2 in header:
-        if affinity[lang1][lang2] > 0 or lang1 == lang2:
-            print(lang2, end="\t")
+    aux_score = sorted(affinity[lang1].items(), key=lambda p: -p[1])
+    for lang2, score in aux_score[:-1]:
+        print(lang2, score, end="\t")
     print()
 
-n_clusters = 2
-n_langs = len(header)
-
-
-def gen_task_combinations(tasks, rtn, index, path, path_dict):
-    if index >= len(tasks):
-        return
-
-    for i in range(index, len(tasks)):
-        cur_task = tasks[i]
-        new_path = path
-        new_dict = {k: v for k, v in path_dict.items()}
-
-        # Building from a tree with two or more tasks...
-        if new_path:
-            new_dict[cur_task] = 0.
-            for prev_task in path_dict:
-                new_dict[prev_task] += revised_integrals[prev_task][cur_task]
-                new_dict[cur_task] += revised_integrals[cur_task][prev_task]
-            new_path = '{}|{}'.format(new_path, cur_task)
-            rtn[new_path] = new_dict
-        else:  # First element in a new-formed tree
-            new_dict[cur_task] = 0.
-            new_path = cur_task
-
-        gen_task_combinations(tasks, rtn, i + 1, new_path, new_dict)
-
-        if '|' not in new_path:
-            new_dict[cur_task] = -1e6
-            rtn[new_path] = new_dict
-
-
-def select_groups(index, cur_group, best_group, best_val, splits):
-    # Check if this group covers all tasks.
-    task_set = set()
-    for group in cur_group:
-        for task in group.split('|'): task_set.add(task)
-    if len(task_set) == num_tasks:
-        best_tasks = {task: -1e6 for task in task_set}
-
-        # Compute the per-task best scores for each task and average them together.
-        for group in cur_group:
-            for task in cur_group[group]:
-                best_tasks[task] = max(best_tasks[task], cur_group[group][task])
-        group_avg = np.mean(list(best_tasks.values()))
-
-        # Compare with the best grouping seen thus far.
-        if group_avg > best_val[0]:
-            print(cur_group)
-            best_val[0] = group_avg
-            best_group.clear()
-            for entry in cur_group:
-                best_group[entry] = cur_group[entry]
-
-    # Base case.
-    if len(cur_group.keys()) == splits:
-        return
-
-    # Back to combinatorics
-    for i in range(index, len(rtn_tup)):
-        selected_group, selected_dict = rtn_tup[i]
-
-        new_group = {k: v for k, v in cur_group.items()}
-        new_group[selected_group] = selected_dict
-
-        if len(new_group.keys()) <= splits:
-            select_groups(i + 1, new_group, best_group, best_val, splits)
-
-
-# revised_integrals = affinity
-# rtn = {}
-# tasks = list(revised_integrals.keys())
-# num_tasks = len(tasks)
-# gen_task_combinations(tasks=tasks, rtn=rtn, index=0, path='', path_dict={})
-#
-# print(rtn)
-
-
-#
-# for group in rtn:
-#     if '|' in group:
-#         for task in rtn[group]:
-#             rtn[group][task] /= (len(group.split('|')) - 1)
-#
-# print(rtn)
-# assert (len(rtn.keys()) == 2 ** len(revised_integrals.keys()) - 1)
-# rtn_tup = [(key, val) for key, val in rtn.items()]
-#
-# selected_group = {}
-# selected_val = [-100000000]
-# select_groups(index=0, cur_group={}, best_group=selected_group, best_val=selected_val, splits=3)
-# print(selected_group)
-# print(selected_val)

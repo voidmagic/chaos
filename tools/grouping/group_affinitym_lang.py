@@ -3,7 +3,7 @@ import math
 import tqdm
 import numpy as np
 
-root_path = "/home/qwang/027-optim/003-models/620-aft-tedx/m2o"
+root_path = "/home/qwang/027-optim/003-models/622-aftm-tedx-base/m2o"
 log_path = f"{root_path}/log.txt"
 
 
@@ -11,11 +11,9 @@ all_languages = set()
 
 with open(log_path) as f:
     for line in f:
-        if "fairseq.data.multilingual.multilingual_data_manager" not in line or "src_langtok" not in line:
+        if "fairseq.tasks.multilingual_translation" not in line or "dictionary" not in line:
             continue
-        if "| train_inner |" in line:
-            break
-        lang_key = line.split()[7]
+        lang_key = line.split()[7].strip("[]")
         all_languages.add(lang_key)
 
 
@@ -34,8 +32,7 @@ def remove_common(a_list):
     return a_list, i, j
 
 
-all_languages, start, end = remove_common(list(all_languages))
-
+all_languages.remove("en")
 affinity_matrix = {lang1: {lang2: [] for lang2 in all_languages} for lang1 in all_languages}
 
 
@@ -43,21 +40,19 @@ diff_sum = 0
 valid_lines = []
 with open(log_path) as f:
     for line in tqdm.tqdm(f.readlines()):
-        if "Affinity" not in line or "modules.preprocessing.affinity.affinity_task" not in line:
+        if "Affinity" not in line or "modules.preprocessing.affinity_m.affinity_m_task_2" not in line:
             continue
         valid_lines.append(line)
 
-num_steps, step_start, step_end = 0, int(0. * len(valid_lines)), int(0.05 * len(valid_lines))
+num_steps, step_start, step_end = 0, int(0. * len(valid_lines)), int(1 * len(valid_lines))
 for line in tqdm.tqdm(valid_lines[step_start:step_end]):
-    languages = line.strip().split(" | ")[4].strip("['] ").split("', '")
-    languages = [lang.strip('_') for lang in languages]
-    target = line.strip().split(" | ")[6][start:end]
+    language = line.strip().split(" | ")[4][0:2]
+    target = line.strip().split(" | ")[6][0:2]
     loss_before = float(line.strip().split(" | ")[7])
     loss_after = float(line.strip().split(" | ")[8])
     loss_differ = float(line.strip().split(" | ")[9])
     diff_sum += (loss_before - loss_after)
-    for lang in languages:
-        affinity_matrix[target][lang].append((loss_differ) / len(languages))
+    affinity_matrix[target][language].append(loss_differ)
 
 print(diff_sum)
 print("\t" + "\t".join(sorted(affinity_matrix.keys())))
