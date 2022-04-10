@@ -87,6 +87,7 @@ class AffinityTask3(TranslationMultiSimpleEpochTask):
     @torch.no_grad()
     def calculate_affinity(self, model, criterion):
         if self.last_valid_loss is not None:  # 上一步成功计算了！
+            model.eval()
             # 重新计算一下valid loss，上次计算loss的batch，计算基于last_sample参数更新后的loss变化
             _, _, logging_output = criterion(model, utils.move_to_cuda(self.last_valid_sample))
             loss = (logging_output["loss"] / logging_output["ntokens"]).cpu().data.clone() / math.log(2)
