@@ -5,6 +5,7 @@ import re
 from scipy.cluster.hierarchy import dendrogram, linkage, cut_tree
 from matplotlib import pyplot as plt
 import numpy as np
+from sklearn.cluster import AgglomerativeClustering
 
 
 root_path = "/home/qwang/027-optim/003-models/601-multi-tedx/o2m"
@@ -28,12 +29,32 @@ fig = plt.figure(figsize=(15, 10))
 dn = dendrogram(Z, labels=np.array(list(key_embedding.keys())))
 plt.show()
 
-clusters = cut_tree(Z, n_clusters=6)
-langs = list(key_embedding.keys())
 
-language_clusters = collections.defaultdict(list)
-for cls, lang in zip(clusters.T[0], langs):
-    language_clusters[cls].append(lang)
+def cluster_n(n_clusters):
+    clusters = cut_tree(Z, n_clusters=n_clusters)
+    langs = list(key_embedding.keys())
 
-for key, value in language_clusters.items():
-    print(key, value)
+    language_clusters = collections.defaultdict(list)
+    for cls, lang in zip(clusters.T[0], langs):
+        language_clusters[cls].append(lang)
+
+    score = []
+    for key, value in language_clusters.items():
+        print(key, value)
+
+        tensors = [key_embedding[lang] for lang in value]
+        differs = sum([(t - np.mean(tensors, axis=0)) ** 2 for t in tensors])
+        score.append(differs)
+    elbow_score = np.sum(score)
+
+    return elbow_score
+
+sse = {}
+for i in range(1, len(key_embedding) + 1):
+    sse[i] = cluster_n(i)
+
+plt.figure()
+plt.plot(list(sse.keys()), list(sse.values()))
+plt.xlabel("Number of cluster")
+plt.ylabel("SSE")
+plt.show()

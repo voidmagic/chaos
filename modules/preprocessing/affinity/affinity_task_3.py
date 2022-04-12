@@ -21,7 +21,7 @@ class AffinityTask3(TranslationMultiSimpleEpochTask):
     last_valid_sample, last_valid_key, last_valid_loss = None, None, None
     last_train_sample, last_train_key, last_train_loss = None, None, None
     random_state_share, random_state_indiv = None, None
-    affinity_interval = 10  # calculate every N steps
+    affinity_interval = 4  # calculate every N steps
 
     def gen_random_train_batch(self):
         if self.random_state_indiv is None or self.random_state_share is None:
@@ -30,7 +30,7 @@ class AffinityTask3(TranslationMultiSimpleEpochTask):
 
         if self.train_batches is None:
             self.train_batches = []
-            datasets, _ = self.data_manager.load_split_datasets("train", True)
+            datasets, _ = self.data_manager.load_split_datasets("valid", True)
             for valid_key, dataset in datasets:
                 lang_train_batches = []
                 old_method, self.args.sampling_method = self.args.sampling_method, "RoundRobin"
@@ -136,5 +136,4 @@ class AffinityTask3(TranslationMultiSimpleEpochTask):
         if update_num % self.affinity_interval == 1:
             self.calculate_affinity(model, criterion)
 
-        self.last_valid_loss = None  # 计算完清除
         return super(AffinityTask3, self).train_step(sample, model, criterion, optimizer, update_num, ignore_grad)
