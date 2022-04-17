@@ -8,6 +8,7 @@ np.set_printoptions(precision=5, suppress=True)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--weight-path", required=True, type=str)
+parser.add_argument("--tokens", default="all", type=str, help="all, first, last, mid")
 args = parser.parse_args()
 
 
@@ -43,9 +44,18 @@ def main():
     for path in pathlib.Path(args.weight_path).glob('*'):
         layer_idx = path.name.split('.')[0]
         weight = torch.load(path).numpy()
+        length = weight.shape[0]
+        if args.tokens == "all" or length < 5:
+            pass
+        elif args.tokens == "first":
+            weight = weight[:int(0.25 * length)]
+        elif args.tokens == "last":
+            weight = weight[int(0.425 * length):int(0.725 * length)]
+        elif args.tokens == "mid":
+            weight = weight[int(0.25 * length):]
         all_weights.append((layer_idx, weight))
 
-    overall(all_weights)
+    per_layer(all_weights)
 
 
 if __name__ == '__main__':

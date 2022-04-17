@@ -3,7 +3,7 @@ import math
 import tqdm
 import numpy as np
 
-root_path = "/home/qwang/027-optim/003-models/623-aft-tedx-base/o2m"
+root_path = "/home/qwang/027-optim/003-models/623-aft-tedx-base-2/o2m"
 log_path = f"{root_path}/log.txt"
 
 

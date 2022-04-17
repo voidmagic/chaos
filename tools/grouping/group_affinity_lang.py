@@ -47,7 +47,7 @@ with open(log_path) as f:
             continue
         valid_lines.append(line)
 
-num_steps, step_start, step_end = 0, int(0. * len(valid_lines)), int(0.05 * len(valid_lines))
+num_steps, step_start, step_end = 0, int(0. * len(valid_lines)), int(1 * len(valid_lines))
 for line in tqdm.tqdm(valid_lines[step_start:step_end]):
     languages = line.strip().split(" | ")[4].strip("['] ").split("', '")
     languages = [lang.strip('_') for lang in languages]
