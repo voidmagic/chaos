@@ -1,10 +1,5 @@
 import collections
 import copy
-import string
-
-import numpy as np
-from matplotlib import pyplot as plt
-from scipy.cluster.hierarchy import dendrogram, linkage, cut_tree
 
 affinity = """
  ar bg cs de el es fa fr he hr hu id it ja ko nl pl pt ro ru sk sr sv th tr uk vi zh
@@ -48,38 +43,55 @@ for line in lines[1:]:
     for main_lang, score in zip(langs, line[1:]):
         affinity_dict[main_lang][line[0]] = float(score)
 
-ll = list("abcdefg")
-n_clusters = 3
-print(ll)
+clusters = {tuple([l]): [k for k in affinity_dict.keys() if affinity_dict[l][k] > 0] for l in list(affinity_dict.keys())}
+print(clusters)
 
 
-class BinPartitions:
-
-    def __init__(self, balls, num_bins):
-        self.balls = balls
-        self.bins = [{} for x in range(num_bins)]
-        self.count = 0
-
-    def print_bins(self, bins):
-        L = []
-        for b in bins:
-            buf = ''.join(sorted(b.keys()))
-            L += [buf]
-        print(",".join(L))
-
-    def _gen_helper(self, balls, bins):
-        if len(balls) == 0:
-            self.count += 1
-        else:
-            A, B = balls[0], balls[1:]
-            for i in range(len(bins)):
-                new_bins = copy.deepcopy(bins)
-                new_bins[i].update({A: 1})
-                self._gen_helper(B, new_bins)
-
-    def get_all(self):
-        self._gen_helper(self.balls, self.bins)
-        print(self.count)
+def compute_score(clusters):
+    over_all = 0
+    for key, value in clusters.items():
+        for lang in key:
+            score = [affinity_dict[lang][l] for l in value]
+            score = sum(score) / len(score)
+            over_all += score
+    return over_all
 
 
-BinPartitions(string.ascii_uppercase[:10], 3).get_all()
+def combine_cluster(clusters, key_1, key_2):
+    new_cluster = {copy.deepcopy(k): copy.deepcopy(v) for k, v in clusters.items() if k != key_1 and k != key_2}
+    new_key = key_1 + key_2
+    new_value = set(new_key)
+    for lang_1 in affinity_dict.keys():
+        if all([affinity_dict[lang_2][lang_1] > 0 for lang_2 in new_key]):
+            new_value.add(lang_1)
+    new_cluster[new_key] = list(new_value)
+    return new_cluster
+
+
+def top_k(key_list, value_list, k=1):
+
+    def calculate_affinity(aux_lang):
+        score = 0
+        for lang in key_list:
+            score += affinity_dict[lang][aux_lang]
+        return score
+
+    aux_lang_scores = {lang: calculate_affinity(lang) for lang in value_list if lang not in key_list}
+    aux_lang_scores = sorted(aux_lang_scores.keys(), key=lambda key: -aux_lang_scores[key])
+    return list(key_list) + aux_lang_scores[:k]
+
+
+while len(clusters) > 2:
+    result = []
+    for key_1 in clusters.keys():
+        for key_2 in clusters.keys():
+            if key_1 == key_2: continue
+            new_cluster = combine_cluster(clusters, key_1, key_2)
+            result.append((key_1, key_2, compute_score(new_cluster)))
+    result = sorted(result, key=lambda p: -p[2])
+    print(len(clusters), result[0][0], result[0][1], result[0][2])
+    clusters = combine_cluster(clusters, result[0][0], result[0][1])
+    items = list(clusters.items())
+    print("test:  ", " ".join([",".join(langs) for langs, _ in items]))
+    print("train: ", " ".join([",".join(top_k(key_langs, langs, k=1)) for key_langs, langs in items]))
+

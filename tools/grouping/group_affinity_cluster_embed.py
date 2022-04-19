@@ -1,3 +1,9 @@
+"""
+根据embedding确定解码的聚类
+根据affinity扩展解码聚类，得到训练聚类
+"""
+
+
 import collections
 import copy
 
@@ -65,7 +71,7 @@ for cluster in serve_clusters:
     aux_lang_scores = sorted(aux_lang_scores.items(), key=lambda p: -p[1])
     aux_lang_scores = [lang for lang, score in aux_lang_scores if score > 0]
     # print(train_langs, "\t", aux_langs)
-    train_clusters.append(train_langs + aux_lang_scores[:4])
+    train_clusters.append(train_langs + aux_lang_scores[:1])
 
 train_clusters_str = " ".join([",".join(cluster) for cluster in train_clusters])
 print(train_clusters_str)
