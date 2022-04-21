@@ -20,7 +20,7 @@ class PartialMultilingualDatasetManager(MultilingualDatasetManager):
         for i in range(len(sample_ratios)):
             if self.lang_pairs[i] not in self.args.eval_lang_pairs:
                 # 这是个辅助语言, rate decay
-                sample_ratios[i] *= (1 / (1 + 0.5 * (epoch - 1)))
+                sample_ratios[i] = sample_ratios[i] * (1 / (1 + 0.5 * (epoch - 1))) / len(self.lang_pairs) * len(self.args.eval_lang_pairs)
         return sample_ratios
 
     def has_sharded_data(self, split):
