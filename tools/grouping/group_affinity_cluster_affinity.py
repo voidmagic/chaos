@@ -51,7 +51,7 @@ def compute_score(clusters):
     over_all = 0
     for key, value in clusters.items():
         for lang in key:
-            score = [affinity_dict[lang][l] for l in value]
+            score = [affinity_dict[lang][l] for l in value if l != lang]
             score = sum(score) / len(score)
             over_all += score
     return over_all
@@ -68,7 +68,7 @@ def combine_cluster(clusters, key_1, key_2):
     return new_cluster
 
 
-def top_k(key_list, value_list, k=1):
+def top_k(key_list, value_list, k=100):
 
     def calculate_affinity(aux_lang):
         score = 0
@@ -93,5 +93,5 @@ while len(clusters) > 2:
     clusters = combine_cluster(clusters, result[0][0], result[0][1])
     items = list(clusters.items())
     print("test:  ", " ".join([",".join(langs) for langs, _ in items]))
-    print("train: ", " ".join([",".join(top_k(key_langs, langs, k=1)) for key_langs, langs in items]))
+    print("train: ", " ".join([",".join(top_k(key_langs, langs, k=100)) for key_langs, langs in items]))
 
