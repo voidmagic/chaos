@@ -1,10 +1,10 @@
 """
-pip install mecab-python3
-pip install unidic-lite
-pip install jieba
-pip install sacremoses
-python -m pip install python-dev-tools
-pip install -v python-mecab-ko
+pip install -i https://pypi.douban.com/simple mecab-python3
+pip install -i https://pypi.douban.com/simple unidic-lite
+pip install -i https://pypi.douban.com/simple jieba
+pip install -i https://pypi.douban.com/simple sacremoses
+pip install -i https://pypi.douban.com/simple python-dev-tools
+pip install -i https://pypi.douban.com/simple -v python-mecab-ko
 """
 
 import argparse
