@@ -3,7 +3,7 @@ import math
 import tqdm
 import numpy as np
 
-root_path = "/home/qwang/027-optim/003-models/623-aft-tedx-base-2/o2m"
+root_path = "/home/qwang/027-optim/003-models/702-multilingual-tedm"
 log_path = f"{root_path}/log.txt"
 
 
@@ -43,7 +43,7 @@ diff_sum = 0
 valid_lines = []
 with open(log_path) as f:
     for line in tqdm.tqdm(f.readlines()):
-        if "Affinity" not in line or "modules.preprocessing.affinity.affinity_task" not in line:
+        if "Affinity" not in line or "modules.preprocessing.affinity.affinity_task_3" not in line:
             continue
         valid_lines.append(line)
 

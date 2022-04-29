@@ -21,7 +21,7 @@ class AffinityTask3(TranslationMultiSimpleEpochTask):
     last_valid_sample, last_valid_key, last_valid_loss = None, None, None
     last_train_sample, last_train_key, last_train_loss = None, None, None
     random_state_share, random_state_indiv = None, None
-    affinity_interval = 20  # calculate every N steps
+    affinity_interval = 4  # calculate every N steps
 
     def gen_random_train_batch(self):
         if self.random_state_indiv is None or self.random_state_share is None:
