@@ -20,7 +20,10 @@ class PartialMultilingualDatasetManager(MultilingualDatasetManager):
         for i in range(len(sample_ratios)):
             if self.lang_pairs[i] not in self.args.eval_lang_pairs:
                 # 这是个辅助语言, rate decay
-                sample_ratios[i] = sample_ratios[i] * (1 / (1 + 0.5 * (epoch - 1))) / len(self.lang_pairs) * len(self.args.eval_lang_pairs)
+                if self.args.aux_method == "fix":
+                    sample_ratios[i] = sample_ratios[i] / len(self.lang_pairs) * len(self.args.eval_lang_pairs)
+                else:
+                    sample_ratios[i] = sample_ratios[i] * (1 / (1 + 0.5 * (epoch - 1))) / len(self.lang_pairs) * len(self.args.eval_lang_pairs)
         return sample_ratios
 
     def has_sharded_data(self, split):
@@ -35,9 +38,14 @@ class AuxTask(TranslationMultiSimpleEpochTask):
 
         if isinstance(args.eval_lang_pairs, str):
             args.eval_lang_pairs = args.eval_lang_pairs.split(",")
-        self.data_manager = PartialMultilingualDatasetManager.setup_data_manager(args, self.lang_pairs, langs, dicts, self.sampling_method)
+
+        if args.aux_method == "ftac" or args.aux_method == "fix":
+            self.data_manager = PartialMultilingualDatasetManager.setup_data_manager(args, self.lang_pairs, langs, dicts, self.sampling_method)
+        else:
+            self.data_manager = MultilingualDatasetManager.setup_data_manager(args, self.lang_pairs, langs, dicts, self.sampling_method)
 
     @staticmethod
     def add_args(parser):
         parser.add_argument('--eval-lang-pairs', default=None, metavar='PAIRS', help='comma-separated list of language pairs (in training order): en-de,en-fr,de-fr')
+        parser.add_argument('--aux-method', default="ftac", help="htac, rand, fix, temp, ftac")
         TranslationMultiSimpleEpochTask.add_args(parser)
