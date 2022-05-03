@@ -4,7 +4,7 @@ import math
 import tqdm
 import numpy as np
 
-root_path = "/home/qwang/028-cluster/003-models/601-multi-tedx/m2o"
+root_path = "/home/qwang/027-optim/003-models/702-multilingual-tedm-1"
 log_path = f"{root_path}/log.txt"
 
 
@@ -69,8 +69,8 @@ for key1 in sorted(affinity_matrix.keys()):
 
 
 affinity_dict = affinity_matrix
-clusters = {tuple([l]): [k for k in affinity_dict.keys() if affinity_dict[l][k] > 0] for l in list(affinity_dict.keys())}
-print(clusters)
+# clusters = {tuple([l]): [k for k in affinity_dict.keys() if affinity_dict[l][k] > 0] for l in list(affinity_dict.keys())}
+# print(clusters)
 
 
 def compute_score(clusters):
@@ -88,7 +88,7 @@ def combine_cluster(clusters, key_1, key_2):
     new_key = key_1 + key_2
     new_value = set(new_key)
     for lang_1 in affinity_dict.keys():
-        if all([affinity_dict[lang_2][lang_1] > 0 for lang_2 in new_key]):
+        if all([affinity_dict[lang_2][lang_1] > -0.2 for lang_2 in new_key if lang_1 != lang_2]):
             new_value.add(lang_1)
     new_cluster[new_key] = list(new_value)
     return new_cluster
@@ -107,19 +107,27 @@ def top_k(key_list, value_list, k=100):
     return list(key_list) + aux_lang_scores[:k]
 
 
-while len(clusters) > 2:
-    result = []
-    for key_1 in clusters.keys():
-        for key_2 in clusters.keys():
-            if key_1 == key_2: continue
-            new_cluster = combine_cluster(clusters, key_1, key_2)
-            result.append((key_1, key_2, compute_score(new_cluster)))
-    result = sorted(result, key=lambda p: -p[2])
-    print(len(clusters), result[0][0], result[0][1], result[0][2])
-    clusters = combine_cluster(clusters, result[0][0], result[0][1])
-    items = list(clusters.items())
-    print("test:  ", " ".join([",".join(langs) for langs, _ in items]))
-    print("train: ", " ".join([",".join(top_k(key_langs, langs, k=100)) for key_langs, langs in items]))
+# while len(clusters) > 2:
+#     result = []
+#     for key_1 in clusters.keys():
+#         for key_2 in clusters.keys():
+#             if key_1 == key_2: continue
+#             new_cluster = combine_cluster(clusters, key_1, key_2)
+#             result.append((key_1, key_2, compute_score(new_cluster)))
+#     result = sorted(result, key=lambda p: -p[2])
+#     print(len(clusters), result[0][0], result[0][1], result[0][2])
+#     clusters = combine_cluster(clusters, result[0][0], result[0][1])
+#     items = list(clusters.items())
+#     print("test:  ", " ".join([",".join(langs) for langs, _ in items]))
+#     print("train: ", " ".join([",".join(top_k(key_langs, langs, k=100)) for key_langs, langs in items]))
 
+
+pairs = "ja-ru ar-es he-tr,ja-tr pt-fr,tr-fr ru-tr,it-tr he-ja,ar-ja ko-he,tr-he ru-ar,fr-ar he-es,ja-es,it-es tr-ru,he-ru,es-ru es-it,ru-it,ja-it pt-he,ru-he,ja-he,it-he es-fr,he-fr,ru-fr ja-ar,tr-ar,ko-ar tr-pt,ja-pt,fr-pt,he-pt he-ko,ru-ko,ja-ko es-he,ar-he,fr-he pt-es,ru-es,ko-es,tr-es,fr-es es-ar,he-ar,it-ar,pt-ar it-fr,ko-fr,ar-fr,ja-fr pt-ru,ko-ru,fr-ru,it-ru,ar-ru es-tr,pt-tr,ko-tr,fr-tr,ar-tr it-ko,tr-ko,ar-ko,fr-ko,es-ko,pt-ko ru-pt,it-pt,es-pt,ar-pt,ko-pt pt-ja,es-ja,tr-ja,ru-ja,fr-ja,ko-ja,it-ja he-it,ko-it,tr-it,fr-it,ar-it,pt-it".split()
+for pair in pairs:
+    pair = pair.split(',')
+    for task in affinity_dict:
+        if all([affinity_dict[lang_2][task] > -0.02 for lang_2 in pair]) and task not in pair:
+            print(task, end=",")
+    print()
 
 
