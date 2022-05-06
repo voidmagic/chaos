@@ -3,3 +3,4 @@ from . import batch_pareto
 from . import transfer
 from . import sam_optim
 from . import msam
+from . import adapter

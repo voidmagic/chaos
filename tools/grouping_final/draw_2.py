@@ -99,7 +99,7 @@ overall_weight = """
 
 
 sns.set(font_scale=0.5)
-figure(figsize=(30, 14))
+figure(figsize=(23.5, 16))
 
 
 def make_data_frame(overall_weight, langs1):
