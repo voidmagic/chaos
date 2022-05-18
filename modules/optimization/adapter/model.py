@@ -171,7 +171,7 @@ class AdapterEncoderLayer(TransformerEncoderLayerBase):
 
     def forward(self, x, encoder_padding_mask, attn_mask=None):
         result = super(AdapterEncoderLayer, self).forward(x, encoder_padding_mask, attn_mask)
-        result = self.adapter(result)
+        result = self.adapter(result) + result
         return result
 
 
@@ -187,7 +187,7 @@ class AdapterDecoderLayer(TransformerDecoderLayerBase):
 
     def forward(self, *args, **kwargs):
         result = super(AdapterDecoderLayer, self).forward(*args, **kwargs)
-        result = (self.adapter(result[0]), None, None,)
+        result = (self.adapter(result[0]) + result[0], None, None,)
         return result
 
 
