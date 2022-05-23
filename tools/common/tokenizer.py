@@ -4,7 +4,7 @@ pip install -i https://pypi.douban.com/simple unidic-lite
 pip install -i https://pypi.douban.com/simple jieba
 pip install -i https://pypi.douban.com/simple sacremoses
 pip install -i https://pypi.douban.com/simple python-dev-tools
-pip install -i https://pypi.douban.com/simple -v python-mecab-ko
+pip install -i https://pypi.douban.com/simple python-mecab-ko
 """
 
 import argparse
