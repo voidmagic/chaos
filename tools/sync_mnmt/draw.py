@@ -2,6 +2,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
 
+
+csfont = {'fontname':'Songti SC'}
+sns.set(font_scale=1.0)
+
+
 overall_weight = """
 0.6907328	0.05515064	0.069206096	0.057479333	0.061313286	0.06612482
 0.046656977	0.671384	0.10787294	0.05090123	0.058818083	0.064360514
@@ -55,9 +60,8 @@ layer_weight = ["""
 0.09458718	0.09553404	0.08999694	0.11302112	0.12563662	0.48122442
 """]
 
-sns.set(font_scale = 1.4)
-overall_weight = [[float(w) for w in weight.split()] for weight in overall_weight.strip().split("\n")]
 
+overall_weight = [[float(w) for w in weight.split()] for weight in overall_weight.strip().split("\n")]
 layer_weight = [[[float(w) for w in weight.split()] for weight in layer_w.strip().split("\n")] for layer_w in layer_weight]
 
 
@@ -71,8 +75,8 @@ def draw_overall(weight, name, m, layer=None):
     fig = plt.figure()
     weight = make_data_frame(weight)
     plot = sns.heatmap(weight, cmap='GnBu', vmax=m)
-    plot.set_xlabel('Auxiliary Languages', labelpad=5)
-    plot.set_ylabel('Language of Interests')
+    plot.set_xlabel('主要语言', labelpad=10, fontsize=15, **csfont)
+    plot.set_ylabel('辅助语言', labelpad=10, fontsize=15, **csfont)
     plot.xaxis.set_ticks_position('top')
     plot.xaxis.set_label_position('top')
     if layer is not None:

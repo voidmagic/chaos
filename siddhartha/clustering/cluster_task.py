@@ -1,5 +1,4 @@
 import logging
-import math
 import random
 
 import torch
@@ -35,13 +34,11 @@ class ClusterTask(TranslationMultiSimpleEpochTask):
                     seed=dist.get_rank() if dist.is_initialized() else 0, num_workers=self.args.num_workers,
                     data_buffer_size=self.args.data_buffer_size).next_epoch_itr()
                 self.train_iterator.append((key, batch_iterator))
-        # 在计算affinity的时候，不同的GPU先选择同样的语言，再选择不同的batch
         key, iterator = self.random_state_share.choice(self.train_iterator)
         return key, next(iterator)
 
     @torch.no_grad()
     def calculate_valid_loss(self, model, criterion):
-        # 随机搞一个batch，计算其loss
         model.eval()
         _, _, logging_output = criterion(model, utils.move_to_cuda(self.last_valid_sample))
         loss = (logging_output["loss"] / logging_output["ntokens"]).cpu().data.clone()
@@ -50,12 +47,10 @@ class ClusterTask(TranslationMultiSimpleEpochTask):
 
     def save_to_affinity(self, loss_before, loss_after):
         if dist.is_initialized():
-            # gather last loss
             output = [0.0 for _ in range(dist.get_world_size())]
             dist.all_gather_object(output, loss_before)
             loss_befores = output
 
-            # gather this loss
             output = [0.0 for _ in range(dist.get_world_size())]
             dist.all_gather_object(output, loss_after)
             loss_afters = output
