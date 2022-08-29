@@ -128,13 +128,16 @@ def make_data_frame(overall_weight, langs1):
 
 
 def draw_overall(weight, name, m, n):
+    fig, ax = plt.subplots(1, 1, figsize=(7.5, 5), dpi=300)
+    cbar_ax = fig.add_axes([.92, .15, .01, .7])
     weight = make_data_frame(overall_weight, langs1="ja-ru ar-es he-tr,ja-tr pt-fr,tr-fr ru-tr,it-tr he-ja,ar-ja ko-he,tr-he ru-ar,fr-ar he-es,ja-es,it-es tr-ru,he-ru,es-ru es-it,ru-it,ja-it pt-he,ru-he,ja-he,it-he es-fr,he-fr,ru-fr ja-ar,tr-ar,ko-ar tr-pt,ja-pt,fr-pt,he-pt he-ko,ru-ko,ja-ko es-he,ar-he,fr-he pt-es,ru-es,ko-es,tr-es,fr-es es-ar,he-ar,it-ar,pt-ar it-fr,ko-fr,ar-fr,ja-fr pt-ru,ko-ru,fr-ru,it-ru,ar-ru es-tr,pt-tr,ko-tr,fr-tr,ar-tr it-ko,tr-ko,ar-ko,fr-ko,es-ko,pt-ko ru-pt,it-pt,es-pt,ar-pt,ko-pt pt-ja,es-ja,tr-ja,ru-ja,fr-ja,ko-ja,it-ja he-it,ko-it,tr-it,fr-it,ar-it,pt-it".split())
-    plot = sns.heatmap(weight, cmap='GnBu', vmax=m, vmin=n)
-    plot.set_xlabel('Task of Interests', labelpad=8)
-    plot.set_ylabel('Auxiliary Tasks', labelpad=3)
-    plot.xaxis.set_ticks_position('top')
-    plot.yaxis.set_ticks_position('left')
+    plot = sns.heatmap(weight, cmap='GnBu', vmax=m, vmin=n, ax=ax, cbar=True, cbar_ax=cbar_ax)
+    plot.set_xlabel('Task of Interests', labelpad=10, fontsize=12)
+    plot.set_ylabel('Auxiliary Tasks', labelpad=0, fontsize=12)
+
     plot.xaxis.set_label_position('top')
+    plot.set(xticklabels=[])
+    plot.set(yticklabels=[])
     # plt.show()
     plt.savefig(name)
 

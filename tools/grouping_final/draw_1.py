@@ -121,4 +121,4 @@ def draw_overall(weight, name, m, n):
 
 # flatten = [item for sublist in overall_weight for item in sublist]
 
-draw_overall(overall_weight, 'data/figure-1.pdf', m=0.25, n=-0.25)
+draw_overall(overall_weight, 'data/figure-1.pdf', m=0.3, n=-0.2)
